@@ -60,14 +60,21 @@ export default function HomePage() {
 
   const overall = health?.status ?? 'down';
   const overallColor =
-    overall === 'ok' ? 'bg-brand-600' : overall === 'degraded' ? 'bg-amber-500' : 'bg-red-600';
+    overall === 'ok'
+      ? 'from-emerald-600 to-green-700'
+      : overall === 'degraded'
+        ? 'from-amber-500 to-orange-600'
+        : 'from-rose-600 to-red-700';
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <header className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+    <main className="min-h-screen text-gray-900 dark:text-gray-100">
+      <header className="surface-card sticky top-0 z-10 flex items-center justify-between border-b border-gray-200/60 px-6 py-4 dark:border-gray-800/70">
         <div className="flex items-center gap-3">
           <img src="/icon.svg" alt="" className="h-8 w-8" />
-          <h1 className="text-lg font-bold">CafeOS Edge</h1>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight">CafeOS Edge</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Offline cafe command center</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span
@@ -88,7 +95,7 @@ export default function HomePage() {
           </span>
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm"
+            className="rounded-lg border border-gray-200 bg-white/70 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900/70"
             aria-label="Tema değiştir"
           >
             {theme === 'dark' ? '☀️' : '🌙'}
@@ -96,9 +103,9 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-4xl px-6 py-10">
+      <section className="mx-auto max-w-5xl px-6 py-10">
         <div
-          className={`mb-8 flex items-center gap-4 rounded-2xl p-6 text-white shadow-sm ${overallColor}`}
+          className={`fade-up mb-8 flex items-center gap-4 rounded-2xl bg-gradient-to-r p-6 text-white shadow-lg shadow-black/10 ${overallColor}`}
         >
           <span className="text-4xl">{overall === 'ok' ? '✓' : overall === 'degraded' ? '!' : '✕'}</span>
           <div>
@@ -110,7 +117,7 @@ export default function HomePage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          <div className="fade-up mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
             API&#39;ye ulaşılamadı: {error}. Bağlantı varsa sayfa 15 saniyede bir yeniden dener.
           </div>
         )}
@@ -120,7 +127,7 @@ export default function HomePage() {
             Object.entries(health.components).map(([name, comp]) => (
               <div
                 key={name}
-                className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+                className="surface-card fade-up rounded-xl p-4"
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-sm font-semibold capitalize">{name}</span>
@@ -142,11 +149,11 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="mt-8 flex items-center justify-between rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          <span>API: {API_URL}</span>
+        <div className="surface-card fade-up mt-8 flex flex-col items-start justify-between gap-3 rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400 sm:flex-row sm:items-center">
+          <span className="font-mono text-xs sm:text-sm">API: {API_URL}</span>
           <button
             onClick={() => void loadHealth()}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
           >
             Yenile
           </button>
