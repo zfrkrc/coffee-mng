@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.edge
+.env.local
+.env.*.local
+!.env.example
+
+# Runtime data
+data/
+*.log
+logs/
+
+# Prisma
+apps/api/generated/
+apps/api/prisma/migrations/dev/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Cloud / infra
+infra/docker/backups/
+infra/docker/certbot/
+
+# PWA
+apps/web/public/sw.js.map

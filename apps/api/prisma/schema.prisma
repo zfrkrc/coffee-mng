@@ -1,0 +1,162 @@
+// CafeOS Edge — Prisma schema
+//
+// Database rules:
+//  - UUIDv7 ids (sortable, global). Generated app-side (@cafeos/shared uuidv7)
+//    so Edge works even if the DB version lacks uuidv7().
+//  - Soft delete via deleted_at where appropriate; queries filter deletedAt.
+//  - version column for optimistic concurrency.
+//  - tenant isolation: every business table carries tenantId; branchId where
+//    branch-scoped. Tenant/branch are ALWAYS resolved from the session, never
+//    trusted from the client.
+//
+// PHASE 1 scope: foundation entities (tenant, branch, user, session, license,
+// audit, settings). Domain tables (floor/table/menu/order/...) arrive in later
+// phases — see docs/DATABASE.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String    @id @default(dbgenerated())
+  name      String
+  code      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  branches Branch[]
+  users    User[]
+  settings CafeSettings[]
+
+  @@index([deletedAt])
+  @@map("tenants")
+}
+
+model Branch {
+  id        String    @id @default(dbgenerated())
+  tenantId  String    @map("tenant_id")
+  name      String
+  code      String
+  isActive  Boolean   @default(true)
+  address   String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  users    User[]
+  settings CafeSettings[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, deletedAt])
+  @@map("branches")
+}
+
+model User {
+  id            String    @id @default(dbgenerated())
+  tenantId      String    @map("tenant_id")
+  branchId      String?   @map("branch_id")
+  email         String
+  username      String
+  fullName      String?   @map("full_name")
+  passwordHash  String    @map("password_hash")
+  role          String    @default("viewer")
+  isActive      Boolean   @default(true)
+  mustChangePwd Boolean   @default(false) @map("must_change_pwd")
+  failedLogins  Int       @default(0) @map("failed_logins")
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+  version       Int       @default(1)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  branch   Branch?       @relation(fields: [branchId], references: [id])
+  sessions AuthSession[]
+  audit    AuditLog[]
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, username])
+  @@index([tenantId, branchId, deletedAt])
+  @@map("users")
+}
+
+model AuthSession {
+  id           String    @id @default(dbgenerated())
+  userId       String    @map("user_id")
+  refreshToken String    @unique @map("refresh_token")
+  userAgent    String?
+  ipAddress    String?   @map("ip_address")
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("auth_sessions")
+}
+
+model CafeSettings {
+  id          String   @id @default(dbgenerated())
+  tenantId    String   @map("tenant_id")
+  branchId    String?  @map("branch_id")
+  key         String
+  value       Json
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String?  @map("updated_by_id")
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@unique([tenantId, branchId, key])
+  @@map("cafe_settings")
+}
+
+model License {
+  id              String    @id @default(dbgenerated())
+  tenantId        String    @map("tenant_id")
+  branchId        String    @map("branch_id")
+  deviceId        String    @map("device_id")
+  plan            String    @default("standard")
+  enabledFeatures Json
+  issuedAt        DateTime  @map("issued_at")
+  validUntil      DateTime  @map("valid_until")
+  signature       String
+  // Last successful signature verification (offline). Updated by node-agent.
+  lastVerifiedAt  DateTime? @map("last_verified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, branchId, deviceId])
+  @@map("licenses")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated())
+  tenantId   String   @map("tenant_id")
+  branchId   String?  @map("branch_id")
+  actorId    String?  @map("actor_id")
+  actorEmail String?  @map("actor_email")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  remoteAddr String?  @map("remote_addr")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([tenantId, branchId, occurredAt])
+  @@index([tenantId, entityType, entityId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,201 @@
+# CafeOS Edge — production compose file
+#
+# Runs the entire cafe locally with NO internet dependency for business ops.
+# Postgres + Redis are bound only to the internal Docker network — never
+# published to the host. Only the API and Web app are exposed to the LAN.
+#
+# Services: cafe-api, cafe-web, postgres, redis, backup-agent, node-agent
+# (license-agent is folded into node-agent for v0.1 — see docs/DEPLOYMENT.md).
+
+name: cafeos
+
+networks:
+  edge:
+    driver: bridge
+    # Isolated subnet so nothing external can reach DB/Redis directly.
+    ipam:
+      config:
+        - subnet: 172.30.1.0/24
+
+volumes:
+  postgres_data:
+  redis_data:
+  cafe_backups:
+  cafe_agent_state:
+
+services:
+  # ------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    container_name: cafeos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cafeos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cafeos}
+      POSTGRES_DB: ${POSTGRES_DB:-cafeos}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cafeos} -d ${POSTGRES_DB:-cafeos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # NOT published to host. Reachable only inside `edge` network.
+    expose:
+      - "5432"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: cafeos-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --save 60 1000
+      --appendonly yes
+      --maxmemory ${REDIS_MAXMEMORY:-256mb}
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    expose:
+      - "6379"
+
+  # ------------------------------------------------------------------
+  cafe-api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: cafeos-api:${CAFEOS_VERSION:-0.1.0}
+    container_name: cafeos-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../../.env.edge
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cafeos}:${POSTGRES_PASSWORD:-cafeos}@postgres:5432/${POSTGRES_DB:-cafeos}
+      REDIS_URL: redis://redis:6379
+    networks:
+      - edge
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ------------------------------------------------------------------
+  cafe-web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    image: cafeos-web:${CAFEOS_VERSION:-0.1.0}
+    container_name: cafeos-web
+    restart: unless-stopped
+    depends_on:
+      cafe-api:
+        condition: service_healthy
+    env_file:
+      - ../../.env.edge
+    environment:
+      PORT: 3001
+      # Browser-facing URL (LAN hostname). Kept configurable for cafe.local.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://cafe.local:3000}
+    networks:
+      - edge
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ------------------------------------------------------------------
+  backup-agent:
+    build:
+      context: ../..
+      dockerfile: apps/backup-agent/Dockerfile
+    image: cafeos-backup-agent:${CAFEOS_VERSION:-0.1.0}
+    container_name: cafeos-backup-agent
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../../.env.edge
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cafeos}:${POSTGRES_PASSWORD:-cafeos}@postgres:5432/${POSTGRES_DB:-cafeos}
+      BACKUP_DIR: /var/lib/cafeos-backups
+    volumes:
+      - cafe_backups:/var/lib/cafeos-backups
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3200/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ------------------------------------------------------------------
+  node-agent:
+    build:
+      context: ../..
+      dockerfile: apps/node-agent/Dockerfile
+    image: cafeos-node-agent:${CAFEOS_VERSION:-0.1.0}
+    container_name: cafeos-node-agent
+    restart: unless-stopped
+    env_file:
+      - ../../.env.edge
+    environment:
+      PORT: 3100
+      AGENT_STATE_DIR: /var/lib/cafeos-agent
+    volumes:
+      - cafe_agent_state:/var/lib/cafeos-agent
+      # Read-only access to docker socket for container health reporting.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3100/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
