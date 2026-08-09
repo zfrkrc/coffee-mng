@@ -23,6 +23,17 @@ type ApiMenuResponse = {
   }>;
 };
 
+type ApiTablesResponse = {
+  items: Array<{
+    id: string;
+    code: string;
+    name: string;
+    capacity: number;
+    customerUrl: string;
+    qrImageUrl: string;
+  }>;
+};
+
 type ApiOrderResponse = {
   id: string;
   status: 'received' | 'preparing' | 'ready';
@@ -39,21 +50,33 @@ const CATEGORY_LABEL: Record<MenuItem['category'], string> = {
 
 export default function CustomerPage() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [tables, setTables] = useState<ApiTablesResponse['items']>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<'all' | MenuItem['category']>('all');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [orderState, setOrderState] = useState<OrderState>('idle');
-  const [tableName, setTableName] = useState('Masa 6');
+  const [tableCode, setTableCode] = useState('T6');
   const [orderId, setOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromQuery = new URLSearchParams(window.location.search).get('table')?.toUpperCase();
+    if (fromQuery) setTableCode(fromQuery);
+  }, []);
 
   useEffect(() => {
     async function loadMenu() {
       setLoading(true);
       try {
-        const res = await fetch('/api/customer/menu', { cache: 'no-store' });
-        if (!res.ok) throw new Error(`Menu HTTP ${res.status}`);
-        const json = (await res.json()) as ApiMenuResponse;
+        const [menuRes, tableRes] = await Promise.all([
+          fetch('/api/customer/menu', { cache: 'no-store' }),
+          fetch('/api/customer/tables', { cache: 'no-store' }),
+        ]);
+        if (!menuRes.ok) throw new Error(`Menu HTTP ${menuRes.status}`);
+        if (!tableRes.ok) throw new Error(`Table HTTP ${tableRes.status}`);
+
+        const json = (await menuRes.json()) as ApiMenuResponse;
+        const tableJson = (await tableRes.json()) as ApiTablesResponse;
         const mapped = json.items.map((item) => ({
           id: item.id,
           name: item.name,
@@ -62,6 +85,10 @@ export default function CustomerPage() {
           note: item.note,
         }));
         setMenu(mapped);
+        setTables(tableJson.items);
+        if (!tableJson.items.some((x) => x.code === tableCode)) {
+          setTableCode(tableJson.items[0]?.code ?? 'T1');
+        }
         setError(null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Menu unavailable');
@@ -70,7 +97,7 @@ export default function CustomerPage() {
       }
     }
     void loadMenu();
-  }, []);
+  }, [tableCode]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -86,6 +113,8 @@ export default function CustomerPage() {
     }, 2500);
     return () => clearInterval(poll);
   }, [orderId]);
+
+  const selectedTable = tables.find((x) => x.code === tableCode);
 
   const filtered = useMemo(
     () => (category === 'all' ? menu : menu.filter((i) => i.category === category)),
@@ -117,7 +146,7 @@ export default function CustomerPage() {
 
     try {
       const payload = {
-        tableName,
+        tableCode,
         items: cart.map((line) => ({ productId: line.item.id, quantity: line.qty })),
       };
       const res = await fetch('/api/customer/orders', {
@@ -141,17 +170,24 @@ export default function CustomerPage() {
       <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-emerald-700 to-green-800 p-6 text-white shadow-lg shadow-black/15">
           <p className="text-xs uppercase tracking-[0.14em] text-emerald-100">Musteri Ekrani</p>
-          <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Siparis Ver</h1>
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <span className="rounded-full bg-white/20 px-3 py-1">Konum: {tableName}</span>
-            <input
-              value={tableName}
-              onChange={(e) => setTableName(e.target.value)}
-              className="rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-white placeholder:text-emerald-100/80"
-              placeholder="Masa bilgisi"
-            />
+            <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Siparis Ver</h1>
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            <span className="rounded-full bg-white/20 px-3 py-1">
+              Konum: {selectedTable?.name ?? tableCode}
+            </span>
+            <select
+              value={tableCode}
+              onChange={(e) => setTableCode(e.target.value)}
+              className="rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-white"
+            >
+              {tables.map((t) => (
+                <option key={t.id} value={t.code} className="text-slate-900">
+                  {t.name} ({t.capacity} kisi)
+                </option>
+              ))}
+            </select>
+            </div>
           </div>
-        </div>
 
         {error && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">

@@ -1,6 +1,13 @@
 export type MenuCategory = 'coffee' | 'tea' | 'food' | 'dessert';
 export type CustomerOrderStatus = 'received' | 'preparing' | 'ready';
 
+export interface CafeTable {
+  id: string;
+  code: string;
+  name: string;
+  capacity: number;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -19,10 +26,16 @@ export interface CustomerOrderLine {
 
 export interface CustomerOrderView {
   id: string;
+  tableCode: string;
   tableName: string;
   status: CustomerOrderStatus;
   items: CustomerOrderLine[];
   totalCents: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TableWithQr extends CafeTable {
+  customerUrl: string;
+  qrImageUrl: string;
 }

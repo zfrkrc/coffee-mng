@@ -151,12 +151,24 @@ export default function HomePage() {
 
         <div className="surface-card fade-up mt-8 flex flex-col items-start justify-between gap-3 rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400 sm:flex-row sm:items-center">
           <span className="font-mono text-xs sm:text-sm">API: {API_URL}</span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <a
               href="/m"
               className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
             >
               Musteri ekrani
+            </a>
+            <a
+              href="/kitchen"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Mutfak paneli
+            </a>
+            <a
+              href="/qr"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Masa QR
             </a>
             <button
               onClick={() => void loadHealth()}

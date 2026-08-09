@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AppError, uuidv7 } from '@cafeos/shared';
 import { computeOrderTotals } from '@cafeos/domain';
-import type { CustomerOrderLine, CustomerOrderView, MenuItem } from './customer.types';
+import type { CafeTable, CustomerOrderLine, CustomerOrderView, MenuItem, TableWithQr } from './customer.types';
 
 export interface CreateCustomerOrderInput {
-  tableName: string;
+  tableCode: string;
   items: Array<{ productId: string; quantity: number }>;
 }
 
@@ -14,6 +14,17 @@ const STATUS_FLOW: CustomerOrderView['status'][] = ['received', 'preparing', 're
 
 @Injectable()
 export class CustomerService {
+  private readonly tables: CafeTable[] = [
+    { id: 't-1', code: 'T1', name: 'Masa 1', capacity: 2 },
+    { id: 't-2', code: 'T2', name: 'Masa 2', capacity: 2 },
+    { id: 't-3', code: 'T3', name: 'Masa 3', capacity: 4 },
+    { id: 't-4', code: 'T4', name: 'Masa 4', capacity: 4 },
+    { id: 't-5', code: 'T5', name: 'Masa 5', capacity: 6 },
+    { id: 't-6', code: 'T6', name: 'Masa 6', capacity: 6 },
+    { id: 't-7', code: 'T7', name: 'Masa 7', capacity: 8 },
+    { id: 't-8', code: 'T8', name: 'Masa 8', capacity: 8 },
+  ];
+
   private readonly menu: MenuItem[] = [
     {
       id: 'latte',
@@ -65,11 +76,23 @@ export class CustomerService {
     return this.menu;
   }
 
+  getTables(baseUrl: string): TableWithQr[] {
+    return this.tables.map((table) => ({
+      ...table,
+      customerUrl: `${baseUrl}/m?table=${table.code}`,
+      qrImageUrl: `${baseUrl}/api/customer/qr/${table.code}`,
+    }));
+  }
+
+  tableByCode(tableCode: string): CafeTable {
+    const found = this.tables.find((t) => t.code === tableCode);
+    if (!found) throw AppError.validation('Unknown table code', { tableCode });
+    return found;
+  }
+
   createOrder(input: CreateCustomerOrderInput): CustomerOrderView {
-    const tableName = input.tableName.trim();
-    if (!tableName) {
-      throw AppError.validation('Table name is required', { tableName: 'required' });
-    }
+    const tableCode = input.tableCode.trim().toUpperCase();
+    const table = this.tableByCode(tableCode);
     if (input.items.length === 0) {
       throw AppError.validation('At least one item is required', { items: 'empty' });
     }
@@ -105,7 +128,8 @@ export class CustomerService {
     const id = uuidv7();
     const order: StoredOrder = {
       id,
-      tableName,
+      tableCode,
+      tableName: table.name,
       status: 'received',
       statusIndex: 0,
       items: lines,
@@ -137,9 +161,27 @@ export class CustomerService {
     return this.publicOrder(found);
   }
 
+  getKitchenOrders(): CustomerOrderView[] {
+    return Array.from(this.orders.values())
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .map((order) => this.publicOrder(order));
+  }
+
+  advanceOrder(orderId: string): CustomerOrderView {
+    const found = this.orders.get(orderId);
+    if (!found) throw AppError.notFound('Order not found');
+    const next = Math.min(found.statusIndex + 1, STATUS_FLOW.length - 1);
+    found.statusIndex = next;
+    found.status = STATUS_FLOW[next];
+    found.updatedAt = new Date().toISOString();
+    this.orders.set(found.id, found);
+    return this.publicOrder(found);
+  }
+
   private publicOrder(order: StoredOrder): CustomerOrderView {
     return {
       id: order.id,
+      tableCode: order.tableCode,
       tableName: order.tableName,
       status: order.status,
       items: order.items,
