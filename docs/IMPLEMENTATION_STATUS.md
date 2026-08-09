@@ -25,6 +25,11 @@
   - Replaced `localhost` with `127.0.0.1` for compose healthchecks.
 - Shared-host port conflicts resolved.
   - Web host port set to `3003` in local `.env.edge` for this environment.
+- Kitchen order correction flow added for staff.
+  - New endpoint: `POST /api/customer/kitchen/orders/:orderId/edit`
+  - Constraint: `ready` status orders cannot be edited.
+  - Editable fields: `tableCode`, `items[]` (productId + quantity).
+  - Kitchen UI now includes inline edit form per order card for non-ready orders.
 
 ## Current Runtime State
 - `cafe-api`: healthy
@@ -33,6 +38,16 @@
 - `backup-agent`: healthy
 - `postgres`: healthy
 - `redis`: healthy
+
+## Validation Notes (2026-08-09)
+- `pnpm --filter @cafeos/api typecheck` -> pass
+- `pnpm --filter @cafeos/web typecheck` -> pass
+- API tests pass when explicit Jest config is provided:
+  - `pnpm --filter @cafeos/api exec jest --runInBand --config jest.config.js`
+- Web test command currently returns `No test files found` (expected in current repo state).
+- Deploy check:
+  - `./infra/scripts/cafeos.sh up cafe-api cafe-web` completed
+  - `./infra/scripts/cafeos.sh status` -> all critical services healthy
 
 ## Docs Added
 - `docs/ARCHITECTURE.md`

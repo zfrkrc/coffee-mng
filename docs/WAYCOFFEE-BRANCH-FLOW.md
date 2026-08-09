@@ -35,3 +35,23 @@ Alternatif direkt linkler:
 
 ## Not
 - Sube degistirmek icin yeniden login gerekir (branch JWT claim icinde tasinir).
+
+## Mutfakta Siparis Duzenleme (Personel)
+- Kitchen ekraninda (`/kitchen`) `Yeni` ve `Hazirlaniyor` asamasindaki siparislerde `Duzenle` butonu gorunur.
+- `Hazir` durumundaki siparisler duzenlenemez (kural backend tarafinda da zorunludur).
+- Duzenle modalinda personel su alanlari gunceller:
+  - masa kodu (`tableCode`)
+  - urun satirlari (urun secimi + adet)
+- Kaydet akisi: `POST /api/customer/kitchen/orders/:orderId/edit`
+- Is kuralari:
+  - en az 1 satir zorunlu
+  - adet tam sayi ve `>= 1`
+  - urun menu icinde olmali
+  - masa kodu gecerli olmali
+
+## Hizli Dogrulama Checklist
+1. `kitchen` ekraninda bir siparis olustur (durum `received`).
+2. `Duzenle` ile masa kodunu ve en az bir urunu degistir, `Kaydet` yap.
+3. Kartta satirlarin/toplamin guncellendigini dogrula.
+4. Siparisi `Ilerle` ile `ready` durumuna getir.
+5. Ayni sipariste `Duzenle` butonunun artik gorunmedigini dogrula.
