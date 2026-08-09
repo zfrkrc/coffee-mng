@@ -9,10 +9,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const isSuperadminMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('superadmin') === '1';
+
   async function submit() {
     setLoading(true);
     try {
-      const res = await fetch('/api/access/login-host', {
+      const res = await fetch(isSuperadminMode ? '/api/access/superadmin/login' : '/api/access/login-host', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -20,7 +22,7 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(`Login HTTP ${res.status}`);
       const json = (await res.json()) as { token: string };
       saveAuthToken(json.token);
-      window.location.href = '/ops';
+      window.location.href = isSuperadminMode ? '/hero' : '/ops';
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Giris basarisiz');
     } finally {
@@ -32,8 +34,8 @@ export default function LoginPage() {
     <main className="min-h-screen px-4 py-8 sm:px-6">
       <section className="mx-auto max-w-md surface-card rounded-2xl p-6">
         <p className="text-xs uppercase tracking-[0.18em] text-slate-500">CafeOS</p>
-        <h1 className="mt-1 text-2xl font-bold">Personel Girisi</h1>
-        <p className="mt-1 text-sm text-slate-500">Domain bazli guvenli erisim</p>
+        <h1 className="mt-1 text-2xl font-bold">{isSuperadminMode ? 'Superadmin Girisi' : 'Personel Girisi'}</h1>
+        <p className="mt-1 text-sm text-slate-500">{isSuperadminMode ? 'Sadece cafeos.zk.net.tr superadmin erisimi' : 'Domain bazli guvenli erisim'}</p>
         <div className="mt-5 space-y-3">
           <input
             value={email}

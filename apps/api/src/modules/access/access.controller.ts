@@ -101,6 +101,14 @@ class SetPasswordDto {
   requestedBy!: string;
 }
 
+class SuperadminLoginDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  password!: string;
+}
+
 @ApiTags('access')
 @Controller('access')
 export class AccessController {
@@ -189,6 +197,39 @@ export class AccessController {
       this.env.JWT_ACCESS_TTL_SECONDS,
     );
     return { token, user: principal };
+  }
+
+  @Post('superadmin/login')
+  loginSuperadmin(@Body() body: SuperadminLoginDto) {
+    if (!this.access.isSuperadmin(body.email)) {
+      throw AppError.forbidden('Only superadmin can access this endpoint');
+    }
+    if (body.password !== this.env.SUPERADMIN_PASSWORD) {
+      throw AppError.forbidden('Invalid superadmin password');
+    }
+    const token = signAuthToken(
+      {
+        sub: 'superadmin',
+        email: body.email.toLowerCase(),
+        role: 'superadmin',
+        services: ['superadmin'],
+        domain: 'cafeos.zk.net.tr',
+        name: 'Zafer',
+      },
+      this.env.JWT_SECRET,
+      this.env.JWT_ISSUER,
+      this.env.JWT_ACCESS_TTL_SECONDS,
+    );
+    return {
+      token,
+      user: {
+        email: body.email.toLowerCase(),
+        role: 'superadmin',
+        services: ['superadmin'],
+        domain: 'cafeos.zk.net.tr',
+        name: 'Zafer',
+      },
+    };
   }
 
   @Get('me')

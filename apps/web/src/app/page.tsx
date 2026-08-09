@@ -16,7 +16,11 @@ export default function HomePage() {
 
   useEffect(() => {
     const host = window.location.hostname.toLowerCase();
-    if (host === 'cafeos.zk.net.tr' || host === 'localhost' || host === '127.0.0.1') return;
+    if (host === 'cafeos.zk.net.tr') {
+      window.location.replace('/login?superadmin=1');
+      return;
+    }
+    if (host === 'localhost' || host === '127.0.0.1') return;
     async function redirectToMemberSlug() {
       try {
         setIsRedirecting(true);
