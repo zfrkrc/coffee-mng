@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { HealthStatus } from '@cafeos/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://cafe.local:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
 type CloudState = 'online' | 'offline' | 'unknown';
 
@@ -26,7 +26,7 @@ export default function HomePage() {
 
   async function loadHealth() {
     try {
-      const res = await fetch(`${API_URL}/api/health/ready`, { cache: 'no-store' });
+      const res = await fetch(`${API_URL}/health/ready`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setHealth((await res.json()) as HealthStatus);
       setError(null);
