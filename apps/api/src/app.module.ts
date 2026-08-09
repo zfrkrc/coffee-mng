@@ -3,6 +3,7 @@ import { ConfigModule } from './core/config/config.module';
 import { PrismaModule } from './core/database/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
 import { HealthModule } from './modules/health/health.module';
+import { CustomerModule } from './modules/customer/customer.module';
 import { RequestLoggingMiddleware } from './core/middleware/request-logging.middleware';
 
 /**
@@ -13,7 +14,7 @@ import { RequestLoggingMiddleware } from './core/middleware/request-logging.midd
  * is deliberate: a single Edge box must stay lightweight and offline-first.
  */
 @Module({
-  imports: [ConfigModule, PrismaModule, RedisModule, HealthModule],
+  imports: [ConfigModule, PrismaModule, RedisModule, HealthModule, CustomerModule],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
