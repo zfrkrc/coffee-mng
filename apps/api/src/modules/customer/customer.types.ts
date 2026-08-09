@@ -39,3 +39,20 @@ export interface TableWithQr extends CafeTable {
   customerUrl: string;
   qrImageUrl: string;
 }
+
+export interface InventoryItem {
+  id: string;
+  productId: string;
+  productName: string;
+  unit: 'pcs' | 'kg' | 'lt';
+  stock: number;
+  threshold: number;
+}
+
+export interface OpsOverview {
+  menuCount: number;
+  tableCount: number;
+  openOrders: number;
+  lowStockCount: number;
+  totalRevenueCents: number;
+}

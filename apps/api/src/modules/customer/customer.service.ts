@@ -1,11 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { AppError, uuidv7 } from '@cafeos/shared';
 import { computeOrderTotals } from '@cafeos/domain';
-import type { CafeTable, CustomerOrderLine, CustomerOrderView, MenuItem, TableWithQr } from './customer.types';
+import type {
+  CafeTable,
+  CustomerOrderLine,
+  CustomerOrderView,
+  InventoryItem,
+  MenuItem,
+  OpsOverview,
+  TableWithQr,
+} from './customer.types';
 
 export interface CreateCustomerOrderInput {
   tableCode: string;
   items: Array<{ productId: string; quantity: number }>;
+}
+
+export interface MenuItemUpsertInput {
+  id: string;
+  name: string;
+  category: MenuItem['category'];
+  priceCents: number;
+  note: string;
 }
 
 type StoredOrder = CustomerOrderView & { statusIndex: number };
@@ -70,10 +86,103 @@ export class CustomerService {
     },
   ];
 
+  private readonly inventory: InventoryItem[] = [
+    {
+      id: 'inv-latte',
+      productId: 'latte',
+      productName: 'Cafe Latte',
+      unit: 'pcs',
+      stock: 34,
+      threshold: 10,
+    },
+    {
+      id: 'inv-americano',
+      productId: 'americano',
+      productName: 'Americano',
+      unit: 'pcs',
+      stock: 28,
+      threshold: 10,
+    },
+    {
+      id: 'inv-earlgrey',
+      productId: 'earlgrey',
+      productName: 'Earl Grey',
+      unit: 'pcs',
+      stock: 7,
+      threshold: 8,
+    },
+    {
+      id: 'inv-toast',
+      productId: 'toast',
+      productName: 'Avocado Toast',
+      unit: 'pcs',
+      stock: 12,
+      threshold: 6,
+    },
+    {
+      id: 'inv-croissant',
+      productId: 'croissant',
+      productName: 'Butter Croissant',
+      unit: 'pcs',
+      stock: 5,
+      threshold: 8,
+    },
+    {
+      id: 'inv-tiramisu',
+      productId: 'tiramisu',
+      productName: 'Tiramisu',
+      unit: 'pcs',
+      stock: 9,
+      threshold: 5,
+    },
+  ];
+
   private readonly orders = new Map<string, StoredOrder>();
 
   getMenu(): MenuItem[] {
     return this.menu;
+  }
+
+  upsertMenuItem(input: MenuItemUpsertInput): MenuItem {
+    const normalizedId = input.id.trim();
+    const normalizedName = input.name.trim();
+    if (!normalizedId || !normalizedName) {
+      throw AppError.validation('Menu item id and name are required');
+    }
+    if (input.priceCents <= 0) {
+      throw AppError.validation('Price must be positive', { priceCents: 'must be > 0' });
+    }
+
+    const existingIdx = this.menu.findIndex((m) => m.id === normalizedId);
+    const next: MenuItem = {
+      id: normalizedId,
+      name: normalizedName,
+      category: input.category,
+      priceCents: input.priceCents,
+      note: input.note.trim(),
+    };
+
+    if (existingIdx >= 0) {
+      this.menu[existingIdx] = next;
+    } else {
+      this.menu.push(next);
+      this.inventory.push({
+        id: `inv-${normalizedId}`,
+        productId: normalizedId,
+        productName: normalizedName,
+        unit: 'pcs',
+        stock: 0,
+        threshold: 5,
+      });
+    }
+
+    return next;
+  }
+
+  deleteMenuItem(itemId: string): void {
+    const idx = this.menu.findIndex((m) => m.id === itemId);
+    if (idx === -1) throw AppError.notFound('Menu item not found');
+    this.menu.splice(idx, 1);
   }
 
   getTables(baseUrl: string): TableWithQr[] {
@@ -88,6 +197,20 @@ export class CustomerService {
     const found = this.tables.find((t) => t.code === tableCode);
     if (!found) throw AppError.validation('Unknown table code', { tableCode });
     return found;
+  }
+
+  getInventory(): InventoryItem[] {
+    return this.inventory;
+  }
+
+  adjustInventory(productId: string, delta: number): InventoryItem {
+    const item = this.inventory.find((x) => x.productId === productId);
+    if (!item) throw AppError.notFound('Inventory item not found');
+    if (!Number.isInteger(delta)) {
+      throw AppError.validation('Delta must be integer', { delta: 'must be integer' });
+    }
+    item.stock = Math.max(0, item.stock + delta);
+    return item;
   }
 
   createOrder(input: CreateCustomerOrderInput): CustomerOrderView {
@@ -165,6 +288,19 @@ export class CustomerService {
     return Array.from(this.orders.values())
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .map((order) => this.publicOrder(order));
+  }
+
+  getOverview(): OpsOverview {
+    const all = Array.from(this.orders.values());
+    const lowStockCount = this.inventory.filter((i) => i.stock <= i.threshold).length;
+    const totalRevenueCents = all.filter((o) => o.status === 'ready').reduce((acc, o) => acc + o.totalCents, 0);
+    return {
+      menuCount: this.menu.length,
+      tableCount: this.tables.length,
+      openOrders: all.filter((o) => o.status !== 'ready').length,
+      lowStockCount,
+      totalRevenueCents,
+    };
   }
 
   advanceOrder(orderId: string): CustomerOrderView {

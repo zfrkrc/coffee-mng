@@ -170,6 +170,12 @@ export default function HomePage() {
             >
               Masa QR
             </a>
+            <a
+              href="/ops"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Isletme paneli
+            </a>
             <button
               onClick={() => void loadHealth()}
               className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"

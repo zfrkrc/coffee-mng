@@ -25,6 +25,29 @@ class CreateOrderDto {
   items!: CreateOrderItemDto[];
 }
 
+class UpsertMenuItemDto {
+  @IsString()
+  id!: string;
+
+  @IsString()
+  name!: string;
+
+  @IsString()
+  category!: 'coffee' | 'tea' | 'food' | 'dessert';
+
+  @IsInt()
+  @Min(1)
+  priceCents!: number;
+
+  @IsString()
+  note!: string;
+}
+
+class AdjustInventoryDto {
+  @IsInt()
+  delta!: number;
+}
+
 @ApiTags('customer')
 @Controller('customer')
 export class CustomerController {
@@ -41,6 +64,32 @@ export class CustomerController {
   @Get('menu')
   menu() {
     return { items: this.customer.getMenu() };
+  }
+
+  @Post('admin/menu')
+  upsertMenu(@Body() body: UpsertMenuItemDto) {
+    return this.customer.upsertMenuItem(body);
+  }
+
+  @Post('admin/menu/:itemId/delete')
+  deleteMenu(@Param('itemId') itemId: string) {
+    this.customer.deleteMenuItem(itemId);
+    return { ok: true };
+  }
+
+  @Get('admin/inventory')
+  inventory() {
+    return { items: this.customer.getInventory() };
+  }
+
+  @Post('admin/inventory/:productId/adjust')
+  adjustInventory(@Param('productId') productId: string, @Body() body: AdjustInventoryDto) {
+    return this.customer.adjustInventory(productId, body.delta);
+  }
+
+  @Get('admin/overview')
+  overview() {
+    return this.customer.getOverview();
   }
 
   @Post('orders')
