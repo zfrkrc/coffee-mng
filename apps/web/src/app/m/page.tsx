@@ -79,9 +79,11 @@ export default function CustomerPage() {
     async function loadMenu() {
       setLoading(true);
       try {
+        const branch = new URLSearchParams(window.location.search).get('branch');
+        const qs = branch ? `&branch=${encodeURIComponent(branch)}` : '';
         const [menuRes, tableRes] = await Promise.all([
-          fetch('/api/customer/menu', { cache: 'no-store' }),
-          fetch('/api/customer/tables', { cache: 'no-store' }),
+          fetch(`/api/customer/menu?${qs.startsWith('&') ? qs.slice(1) : ''}`, { cache: 'no-store' }),
+          fetch(`/api/customer/tables?${qs.startsWith('&') ? qs.slice(1) : ''}`, { cache: 'no-store' }),
         ]);
         if (!menuRes.ok) throw new Error(`Menu HTTP ${menuRes.status}`);
         if (!tableRes.ok) throw new Error(`Table HTTP ${tableRes.status}`);
@@ -115,7 +117,9 @@ export default function CustomerPage() {
     if (!orderId) return;
     const poll = setInterval(async () => {
       try {
-        const res = await fetch(`/api/customer/orders/${orderId}`, { cache: 'no-store' });
+        const branch = new URLSearchParams(window.location.search).get('branch');
+        const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+        const res = await fetch(`/api/customer/orders/${orderId}${qs}`, { cache: 'no-store' });
         if (!res.ok) return;
         const json = (await res.json()) as ApiOrderResponse;
         setOrderState(json.status);
@@ -159,6 +163,7 @@ export default function CustomerPage() {
     try {
       const payload = {
         tableCode,
+        branchSlug: new URLSearchParams(window.location.search).get('branch') ?? undefined,
         items: cart.map((line) => ({ productId: line.item.id, quantity: line.qty })),
       };
       const res = await fetch('/api/customer/orders', {

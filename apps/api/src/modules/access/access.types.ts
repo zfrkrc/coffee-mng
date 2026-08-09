@@ -27,3 +27,14 @@ export interface StaffUser {
   active: boolean;
   createdAt: string;
 }
+
+export interface BranchInfo {
+  id: string;
+  memberId: string;
+  slug: string;
+  name: string;
+  address?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

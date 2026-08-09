@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { saveAuthToken } from '../../lib/auth';
 
 export default function LoginPage() {
@@ -8,21 +8,32 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [branchSlug, setBranchSlug] = useState('');
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('branch');
+    if (p) setBranchSlug(p);
+  }, []);
 
   const isSuperadminMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('superadmin') === '1';
 
   async function submit() {
     setLoading(true);
     try {
+      const body = isSuperadminMode ? { email, password } : { email, password, branchSlug: branchSlug.trim() || undefined };
       const res = await fetch(isSuperadminMode ? '/api/access/superadmin/login' : '/api/access/login-host', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`Login HTTP ${res.status}`);
-      const json = (await res.json()) as { token: string };
+      const json = (await res.json()) as { token: string; user?: { role?: string } };
       saveAuthToken(json.token);
-      window.location.href = isSuperadminMode ? '/hero' : '/ops';
+      if (isSuperadminMode || json.user?.role === 'superadmin') {
+        window.location.href = '/hero';
+        return;
+      }
+      window.location.href = '/domain-redirect';
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Giris basarisiz');
     } finally {
@@ -50,6 +61,14 @@ export default function LoginPage() {
             placeholder="sifre"
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
+          {!isSuperadminMode && (
+            <input
+              value={branchSlug}
+              onChange={(e) => setBranchSlug(e.target.value)}
+              placeholder="sube slug (or: ayranci, bahceli)"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            />
+          )}
           <button
             onClick={() => void submit()}
             disabled={loading}

@@ -22,7 +22,9 @@ export default function KitchenPage() {
 
   async function loadOrders() {
     try {
-      const res = await authFetch('/api/customer/kitchen/orders', { cache: 'no-store' });
+      const branch = new URLSearchParams(window.location.search).get('branch');
+      const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+      const res = await authFetch(`/api/customer/kitchen/orders${qs}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { items: KitchenOrder[] };
       setOrders(json.items);
@@ -35,7 +37,9 @@ export default function KitchenPage() {
   }
 
   async function advanceOrder(orderId: string) {
-    await authFetch(`/api/customer/kitchen/orders/${orderId}/advance`, { method: 'POST' });
+    const branch = new URLSearchParams(window.location.search).get('branch');
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    await authFetch(`/api/customer/kitchen/orders/${orderId}/advance${qs}`, { method: 'POST' });
     await loadOrders();
   }
 

@@ -28,6 +28,10 @@ class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
+
+  @IsOptional()
+  @IsString()
+  branchSlug?: string;
 }
 
 class UpsertMenuItemDto {
@@ -80,71 +84,74 @@ export class CustomerController {
 
   @Get('tables')
   tables(@Req() req: Request) {
+    const domain = this.getRequestDomain(req);
+    const branchSlug = this.getBranchSlug(req);
     const proto = req.headers['x-forwarded-proto']?.toString() ?? req.protocol;
     const host = req.headers['x-forwarded-host']?.toString() ?? req.get('host') ?? 'localhost:3003';
     const baseUrl = `${proto}://${host}`;
-    return { items: this.customer.getTables(baseUrl) };
+    return { items: this.customer.getTables(domain, baseUrl, branchSlug) };
   }
 
   @Get('menu')
-  menu() {
-    return { items: this.customer.getMenu() };
+  menu(@Req() req: Request) {
+    const domain = this.getRequestDomain(req);
+    return { items: this.customer.getMenu(domain) };
   }
 
   @Post('admin/menu')
   upsertMenu(@Body() body: UpsertMenuItemDto, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.upsertMenuItem(body);
+    return this.customer.upsertMenuItem(this.getRequestDomain(req), body);
   }
 
   @Post('admin/menu/:itemId/delete')
   deleteMenu(@Param('itemId') itemId: string, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    this.customer.deleteMenuItem(itemId);
+    this.customer.deleteMenuItem(this.getRequestDomain(req), itemId);
     return { ok: true };
   }
 
   @Get('admin/inventory')
   inventory(@Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return { items: this.customer.getInventory() };
+    return { items: this.customer.getInventory(this.getRequestDomain(req)) };
   }
 
   @Post('admin/inventory/:productId/adjust')
   adjustInventory(@Param('productId') productId: string, @Body() body: AdjustInventoryDto, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.adjustInventory(productId, body.delta);
+    return this.customer.adjustInventory(this.getRequestDomain(req), productId, body.delta);
   }
 
   @Get('admin/overview')
   overview(@Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.getOverview();
+    return this.customer.getOverview(this.getRequestDomain(req));
   }
 
   @Get('admin/reports/daily')
   dailyReport(@Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.getDailyReport();
+    return this.customer.getDailyReport(this.getRequestDomain(req));
   }
 
   @Post('admin/tables')
   upsertTable(@Body() body: UpsertTableDto, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.upsertTable(body);
+    return this.customer.upsertTable(this.getRequestDomain(req), body);
   }
 
   @Post('admin/tables/:tableCode/delete')
   deleteTable(@Param('tableCode') tableCode: string, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    this.customer.deleteTable(tableCode);
+    this.customer.deleteTable(this.getRequestDomain(req), tableCode);
     return { ok: true };
   }
 
   @Post('orders')
   async createOrder(@Body() body: CreateOrderDto, @Req() req: Request) {
-    const order = this.customer.createOrder(body);
     const domain = this.getRequestDomain(req);
+    const order = this.customer.createOrder(domain, body);
     await this.telegram.notifyByDomain(
       domain,
       `<b>Yeni Siparis</b>\nMasa: ${order.tableName} (${order.tableCode})\nTutar: ${Math.round(order.totalCents / 100)} TL\nNo: ${order.id.slice(0, 8)}`,
@@ -155,14 +162,14 @@ export class CustomerController {
   @Get('kitchen/orders')
   kitchenOrders(@Req() req: Request) {
     this.requireService(req, 'kitchen-board');
-    return { items: this.customer.getKitchenOrders() };
+    return { items: this.customer.getKitchenOrders(this.getRequestDomain(req)) };
   }
 
   @Post('kitchen/orders/:orderId/advance')
   async advanceOrder(@Param('orderId') orderId: string, @Req() req: Request) {
     this.requireService(req, 'kitchen-board');
-    const order = this.customer.advanceOrder(orderId);
     const domain = this.getRequestDomain(req);
+    const order = this.customer.advanceOrder(domain, orderId);
     await this.telegram.notifyByDomain(
       domain,
       `<b>Siparis Durumu</b>\nMasa: ${order.tableName} (${order.tableCode})\nDurum: ${order.status}\nNo: ${order.id.slice(0, 8)}`,
@@ -171,8 +178,8 @@ export class CustomerController {
   }
 
   @Get('orders/:orderId')
-  getOrder(@Param('orderId') orderId: string) {
-    return this.customer.getOrder(orderId);
+  getOrder(@Param('orderId') orderId: string, @Req() req: Request) {
+    return this.customer.getOrder(this.getRequestDomain(req), orderId);
   }
 
   private requireService(req: Request, service: string): void {
@@ -202,15 +209,47 @@ export class CustomerController {
   private getRequestDomain(req: Request): string {
     const forwardedHost = req.headers['x-forwarded-host'];
     const hostValue = Array.isArray(forwardedHost) ? forwardedHost[0] : (forwardedHost ?? req.headers.host ?? '');
-    return hostValue.split(',')[0]?.trim().split(':')[0]?.toLowerCase() || 'localhost';
+    const host = hostValue.split(',')[0]?.trim().split(':')[0]?.toLowerCase() || 'localhost';
+
+    const branch = this.getBranchSlug(req);
+    return branch ? `${host}::${branch}` : host;
+  }
+
+  private getBranchSlug(req: Request): string | null {
+    const auth = req.headers.authorization ?? '';
+    if (auth.startsWith('Bearer ')) {
+      const token = auth.slice('Bearer '.length);
+      try {
+        const payload = verifyAuthToken(token, this.env.JWT_SECRET, this.env.JWT_ISSUER);
+        if (payload.branch?.slug) return payload.branch.slug;
+      } catch {
+        return null;
+      }
+    }
+
+    const branchFromQuery = req.query.branch;
+    if (typeof branchFromQuery === 'string' && branchFromQuery.trim()) return branchFromQuery.trim().toLowerCase();
+
+    const body = req.body as { branchSlug?: unknown } | undefined;
+    if (body && typeof body.branchSlug === 'string' && body.branchSlug.trim()) {
+      return body.branchSlug.trim().toLowerCase();
+    }
+
+    const headerBranch = req.headers['x-cafe-branch'];
+    if (typeof headerBranch === 'string' && headerBranch.trim()) return headerBranch.trim().toLowerCase();
+
+    return null;
   }
 
   @Get('qr/:tableCode')
   async qr(@Param('tableCode') tableCode: string, @Req() req: Request, @Res() res: Response) {
-    const table = this.customer.tableByCode(tableCode.toUpperCase());
+    const domain = this.getRequestDomain(req);
+    const branch = this.getBranchSlug(req);
+    const table = this.customer.tableByCode(domain, tableCode.toUpperCase());
     const proto = req.headers['x-forwarded-proto']?.toString() ?? req.protocol;
     const host = req.headers['x-forwarded-host']?.toString() ?? req.get('host') ?? 'localhost:3003';
-    const target = `${proto}://${host}/m?table=${table.code}`;
+    const branchQuery = branch ? `&branch=${encodeURIComponent(branch)}` : '';
+    const target = `${proto}://${host}/m?table=${table.code}${branchQuery}`;
 
     const qrDataUrl = await QRCode.toDataURL(target, {
       type: 'image/png',

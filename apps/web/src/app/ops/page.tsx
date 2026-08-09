@@ -60,11 +60,13 @@ export default function OpsPage() {
 
   async function loadAll() {
     try {
+      const branch = new URLSearchParams(window.location.search).get('branch');
+      const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
       const [ovRes, menuRes, invRes, tableRes] = await Promise.all([
-        authFetch('/api/customer/admin/overview', { cache: 'no-store' }),
-        fetch('/api/customer/menu', { cache: 'no-store' }),
-        authFetch('/api/customer/admin/inventory', { cache: 'no-store' }),
-        fetch('/api/customer/tables', { cache: 'no-store' }),
+        authFetch(`/api/customer/admin/overview${qs}`, { cache: 'no-store' }),
+        fetch(`/api/customer/menu${qs}`, { cache: 'no-store' }),
+        authFetch(`/api/customer/admin/inventory${qs}`, { cache: 'no-store' }),
+        fetch(`/api/customer/tables${qs}`, { cache: 'no-store' }),
       ]);
       if (!ovRes.ok || !menuRes.ok || !invRes.ok || !tableRes.ok) {
         throw new Error('Ops verisi yuklenemedi');
@@ -74,7 +76,7 @@ export default function OpsPage() {
       const menuJson = (await menuRes.json()) as { items: MenuItem[] };
       const invJson = (await invRes.json()) as { items: InventoryItem[] };
       const tableJson = (await tableRes.json()) as { items: TableItem[] };
-      const reportRes = await authFetch('/api/customer/admin/reports/daily', { cache: 'no-store' });
+      const reportRes = await authFetch(`/api/customer/admin/reports/daily${qs}`, { cache: 'no-store' });
       const reportJson = reportRes.ok ? ((await reportRes.json()) as DailyReport) : null;
 
       setOverview(ov);
@@ -93,9 +95,11 @@ export default function OpsPage() {
   }, []);
 
   async function saveMenuItem() {
+    const branch = new URLSearchParams(window.location.search).get('branch');
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
     const price = Math.round(Number(form.priceTl) * 100);
     if (!form.id || !form.name || !price) return;
-    await authFetch('/api/customer/admin/menu', {
+    await authFetch(`/api/customer/admin/menu${qs}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -112,12 +116,16 @@ export default function OpsPage() {
   }
 
   async function deleteMenuItem(itemId: string) {
-    await authFetch(`/api/customer/admin/menu/${itemId}/delete`, { method: 'POST' });
+    const branch = new URLSearchParams(window.location.search).get('branch');
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    await authFetch(`/api/customer/admin/menu/${itemId}/delete${qs}`, { method: 'POST' });
     await loadAll();
   }
 
   async function adjustStock(productId: string, delta: number) {
-    await authFetch(`/api/customer/admin/inventory/${productId}/adjust`, {
+    const branch = new URLSearchParams(window.location.search).get('branch');
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    await authFetch(`/api/customer/admin/inventory/${productId}/adjust${qs}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ delta }),
@@ -126,8 +134,10 @@ export default function OpsPage() {
   }
 
   async function saveTable() {
+    const branch = new URLSearchParams(window.location.search).get('branch');
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
     if (!tableForm.code || !tableForm.name) return;
-    await authFetch('/api/customer/admin/tables', {
+    await authFetch(`/api/customer/admin/tables${qs}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -141,7 +151,9 @@ export default function OpsPage() {
   }
 
   async function deleteTable(code: string) {
-    const res = await authFetch(`/api/customer/admin/tables/${code}/delete`, { method: 'POST' });
+    const branch = new URLSearchParams(window.location.search).get('branch');
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    const res = await authFetch(`/api/customer/admin/tables/${code}/delete${qs}`, { method: 'POST' });
     if (!res.ok) {
       const txt = await res.text();
       setError(`Masa silinemedi: ${txt}`);

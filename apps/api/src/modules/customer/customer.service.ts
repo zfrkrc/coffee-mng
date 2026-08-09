@@ -34,12 +34,18 @@ export interface UpsertTableInput {
 }
 
 type StoredOrder = CustomerOrderView & { statusIndex: number };
+type CustomerState = {
+  tables: CafeTable[];
+  menu: MenuItem[];
+  inventory: InventoryItem[];
+  orders: Map<string, StoredOrder>;
+};
 
 const STATUS_FLOW: CustomerOrderView['status'][] = ['received', 'preparing', 'ready'];
 
 @Injectable()
 export class CustomerService {
-  private readonly tables: CafeTable[] = [
+  private readonly defaultTables: CafeTable[] = [
     { id: 't-1', code: 'T1', name: 'Masa 1', capacity: 2 },
     { id: 't-2', code: 'T2', name: 'Masa 2', capacity: 2 },
     { id: 't-3', code: 'T3', name: 'Masa 3', capacity: 4 },
@@ -50,7 +56,7 @@ export class CustomerService {
     { id: 't-8', code: 'T8', name: 'Masa 8', capacity: 8 },
   ];
 
-  private readonly menu: MenuItem[] = [
+  private readonly defaultMenu: MenuItem[] = [
     {
       id: 'latte',
       name: 'Cafe Latte',
@@ -101,7 +107,7 @@ export class CustomerService {
     },
   ];
 
-  private readonly inventory: InventoryItem[] = [
+  private readonly defaultInventory: InventoryItem[] = [
     {
       id: 'inv-latte',
       productId: 'latte',
@@ -152,13 +158,14 @@ export class CustomerService {
     },
   ];
 
-  private readonly orders = new Map<string, StoredOrder>();
+  private readonly states = new Map<string, CustomerState>();
 
-  getMenu(): MenuItem[] {
-    return this.menu;
+  getMenu(domain: string): MenuItem[] {
+    return this.stateFor(domain).menu;
   }
 
-  upsertMenuItem(input: MenuItemUpsertInput): MenuItem {
+  upsertMenuItem(domain: string, input: MenuItemUpsertInput): MenuItem {
+    const state = this.stateFor(domain);
     const normalizedId = input.id.trim();
     const normalizedName = input.name.trim();
     if (!normalizedId || !normalizedName) {
@@ -168,7 +175,7 @@ export class CustomerService {
       throw AppError.validation('Price must be positive', { priceCents: 'must be > 0' });
     }
 
-    const existingIdx = this.menu.findIndex((m) => m.id === normalizedId);
+    const existingIdx = state.menu.findIndex((m) => m.id === normalizedId);
     const next: MenuItem = {
       id: normalizedId,
       name: normalizedName,
@@ -179,10 +186,10 @@ export class CustomerService {
     };
 
     if (existingIdx >= 0) {
-      this.menu[existingIdx] = next;
+      state.menu[existingIdx] = next;
     } else {
-      this.menu.push(next);
-      this.inventory.push({
+      state.menu.push(next);
+      state.inventory.push({
         id: `inv-${normalizedId}`,
         productId: normalizedId,
         productName: normalizedName,
@@ -195,27 +202,30 @@ export class CustomerService {
     return next;
   }
 
-  deleteMenuItem(itemId: string): void {
-    const idx = this.menu.findIndex((m) => m.id === itemId);
+  deleteMenuItem(domain: string, itemId: string): void {
+    const state = this.stateFor(domain);
+    const idx = state.menu.findIndex((m) => m.id === itemId);
     if (idx === -1) throw AppError.notFound('Menu item not found');
-    this.menu.splice(idx, 1);
+    state.menu.splice(idx, 1);
   }
 
-  getTables(baseUrl: string): TableWithQr[] {
-    return this.tables.map((table) => ({
+  getTables(domain: string, baseUrl: string, branchSlug?: string | null): TableWithQr[] {
+    const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
+    return this.stateFor(domain).tables.map((table) => ({
       ...table,
-      customerUrl: `${baseUrl}/m?table=${table.code}`,
-      qrImageUrl: `${baseUrl}/api/customer/qr/${table.code}`,
+      customerUrl: `${baseUrl}/m?table=${table.code}${branchSlug ? `&branch=${encodeURIComponent(branchSlug)}` : ''}`,
+      qrImageUrl: `${baseUrl}/api/customer/qr/${table.code}${branchQuery}`,
     }));
   }
 
-  upsertTable(input: UpsertTableInput): CafeTable {
+  upsertTable(domain: string, input: UpsertTableInput): CafeTable {
+    const state = this.stateFor(domain);
     const code = input.code.trim().toUpperCase();
     const name = input.name.trim();
     const capacity = Math.max(1, Math.floor(input.capacity));
     if (!code || !name) throw AppError.validation('Table code and name are required');
 
-    const existing = this.tables.find((t) => t.code === code || (input.id && t.id === input.id));
+    const existing = state.tables.find((t) => t.code === code || (input.id && t.id === input.id));
     if (existing) {
       existing.code = code;
       existing.name = name;
@@ -229,33 +239,35 @@ export class CustomerService {
       name,
       capacity,
     };
-    this.tables.push(table);
+    state.tables.push(table);
     return table;
   }
 
-  deleteTable(tableCode: string): void {
+  deleteTable(domain: string, tableCode: string): void {
+    const state = this.stateFor(domain);
     const code = tableCode.trim().toUpperCase();
-    const idx = this.tables.findIndex((t) => t.code === code);
+    const idx = state.tables.findIndex((t) => t.code === code);
     if (idx === -1) throw AppError.notFound('Table not found');
-    const hasOrders = Array.from(this.orders.values()).some((o) => o.tableCode === code);
+    const hasOrders = Array.from(state.orders.values()).some((o) => o.tableCode === code);
     if (hasOrders) {
       throw AppError.conflict('Table has existing orders and cannot be removed');
     }
-    this.tables.splice(idx, 1);
+    state.tables.splice(idx, 1);
   }
 
-  tableByCode(tableCode: string): CafeTable {
-    const found = this.tables.find((t) => t.code === tableCode);
+  tableByCode(domain: string, tableCode: string): CafeTable {
+    const found = this.stateFor(domain).tables.find((t) => t.code === tableCode);
     if (!found) throw AppError.validation('Unknown table code', { tableCode });
     return found;
   }
 
-  getInventory(): InventoryItem[] {
-    return this.inventory;
+  getInventory(domain: string): InventoryItem[] {
+    return this.stateFor(domain).inventory;
   }
 
-  adjustInventory(productId: string, delta: number): InventoryItem {
-    const item = this.inventory.find((x) => x.productId === productId);
+  adjustInventory(domain: string, productId: string, delta: number): InventoryItem {
+    const state = this.stateFor(domain);
+    const item = state.inventory.find((x) => x.productId === productId);
     if (!item) throw AppError.notFound('Inventory item not found');
     if (!Number.isInteger(delta)) {
       throw AppError.validation('Delta must be integer', { delta: 'must be integer' });
@@ -264,9 +276,10 @@ export class CustomerService {
     return item;
   }
 
-  createOrder(input: CreateCustomerOrderInput): CustomerOrderView {
+  createOrder(domain: string, input: CreateCustomerOrderInput): CustomerOrderView {
+    const state = this.stateFor(domain);
     const tableCode = input.tableCode.trim().toUpperCase();
-    const table = this.tableByCode(tableCode);
+    const table = this.tableByCode(domain, tableCode);
     if (input.items.length === 0) {
       throw AppError.validation('At least one item is required', { items: 'empty' });
     }
@@ -277,7 +290,7 @@ export class CustomerService {
           quantity: `invalid for product ${item.productId}`,
         });
       }
-      const product = this.menu.find((m) => m.id === item.productId);
+      const product = state.menu.find((m) => m.id === item.productId);
       if (!product) {
         throw AppError.validation('Unknown product', { productId: item.productId });
       }
@@ -312,12 +325,13 @@ export class CustomerService {
       updatedAt: now,
     };
 
-    this.orders.set(id, order);
+    state.orders.set(id, order);
     return this.publicOrder(order);
   }
 
-  getOrder(orderId: string): CustomerOrderView {
-    const found = this.orders.get(orderId);
+  getOrder(domain: string, orderId: string): CustomerOrderView {
+    const state = this.stateFor(domain);
+    const found = state.orders.get(orderId);
     if (!found) throw AppError.notFound('Order not found');
 
     const now = Date.now();
@@ -329,34 +343,35 @@ export class CustomerService {
       found.statusIndex = nextIndex;
       found.status = STATUS_FLOW[nextIndex];
       found.updatedAt = new Date().toISOString();
-      this.orders.set(found.id, found);
+      state.orders.set(found.id, found);
     }
 
     return this.publicOrder(found);
   }
 
-  getKitchenOrders(): CustomerOrderView[] {
-    return Array.from(this.orders.values())
+  getKitchenOrders(domain: string): CustomerOrderView[] {
+    return Array.from(this.stateFor(domain).orders.values())
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .map((order) => this.publicOrder(order));
   }
 
-  getOverview(): OpsOverview {
-    const all = Array.from(this.orders.values());
-    const lowStockCount = this.inventory.filter((i) => i.stock <= i.threshold).length;
+  getOverview(domain: string): OpsOverview {
+    const state = this.stateFor(domain);
+    const all = Array.from(state.orders.values());
+    const lowStockCount = state.inventory.filter((i) => i.stock <= i.threshold).length;
     const totalRevenueCents = all.filter((o) => o.status === 'ready').reduce((acc, o) => acc + o.totalCents, 0);
     return {
-      menuCount: this.menu.length,
-      tableCount: this.tables.length,
+      menuCount: state.menu.length,
+      tableCount: state.tables.length,
       openOrders: all.filter((o) => o.status !== 'ready').length,
       lowStockCount,
       totalRevenueCents,
     };
   }
 
-  getDailyReport(): DailyReport {
+  getDailyReport(domain: string): DailyReport {
     const today = new Date().toISOString().slice(0, 10);
-    const orders = Array.from(this.orders.values());
+    const orders = Array.from(this.stateFor(domain).orders.values());
     const grossRevenueCents = orders.reduce((acc, o) => acc + o.totalCents, 0);
     const byProduct = new Map<string, { name: string; qty: number }>();
     const byTable = new Map<string, { tableName: string; orders: number }>();
@@ -392,15 +407,31 @@ export class CustomerService {
     };
   }
 
-  advanceOrder(orderId: string): CustomerOrderView {
-    const found = this.orders.get(orderId);
+  advanceOrder(domain: string, orderId: string): CustomerOrderView {
+    const state = this.stateFor(domain);
+    const found = state.orders.get(orderId);
     if (!found) throw AppError.notFound('Order not found');
     const next = Math.min(found.statusIndex + 1, STATUS_FLOW.length - 1);
     found.statusIndex = next;
     found.status = STATUS_FLOW[next];
     found.updatedAt = new Date().toISOString();
-    this.orders.set(found.id, found);
+    state.orders.set(found.id, found);
     return this.publicOrder(found);
+  }
+
+  private stateFor(domain: string): CustomerState {
+    const key = domain.trim().toLowerCase();
+    const existing = this.states.get(key);
+    if (existing) return existing;
+
+    const created: CustomerState = {
+      tables: this.defaultTables.map((table) => ({ ...table })),
+      menu: this.defaultMenu.map((item) => ({ ...item })),
+      inventory: this.defaultInventory.map((item) => ({ ...item })),
+      orders: new Map<string, StoredOrder>(),
+    };
+    this.states.set(key, created);
+    return created;
   }
 
   private publicOrder(order: StoredOrder): CustomerOrderView {

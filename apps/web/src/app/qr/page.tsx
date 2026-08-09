@@ -18,7 +18,9 @@ export default function QrPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/customer/tables', { cache: 'no-store' });
+        const branch = new URLSearchParams(window.location.search).get('branch');
+        const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+        const res = await fetch(`/api/customer/tables${qs}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { items: TableQr[] };
         setTables(json.items);

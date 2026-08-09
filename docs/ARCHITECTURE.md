@@ -41,6 +41,13 @@ CafeOS Edge is an offline-first cafe platform designed to keep core operations r
 3. API persists to PostgreSQL and uses Redis for transient state.
 4. Node and backup agents run independently and expose internal health endpoints.
 
+## Multi-Branch Tenant Model
+- Tenant identity is resolved from host/domain (for example `cafeos.waycoffee.com.tr`).
+- Branch identity is selected at login (`branchSlug`) and embedded into JWT claims.
+- Runtime data partition key is `domain::branchSlug` when branch is selected, otherwise `domain`.
+- Branch-scoped operational data is isolated per branch: menu, tables, inventory, orders, kitchen state, AI station snapshot.
+- Superadmin manages branches from Hero panel through `access_branches` records.
+
 ## Real-Time and Future Extensions
 - Planned real-time updates via Socket.IO through API.
 - Planned cloud sync remains optional and never in critical local path.

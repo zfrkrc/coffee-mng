@@ -6,6 +6,12 @@ export type AuthTokenPayload = {
   role: string;
   services: string[];
   domain: string;
+  branch?: {
+    id: string;
+    slug: string;
+    name: string;
+    address?: string;
+  };
   name: string;
   iat: number;
   exp: number;

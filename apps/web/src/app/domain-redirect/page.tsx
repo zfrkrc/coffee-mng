@@ -17,16 +17,17 @@ export default function DomainRedirectPage() {
       try {
         const me = await fetchMe();
         if (me) {
+          const branchQuery = me.branch?.slug ? `?branch=${encodeURIComponent(me.branch.slug)}` : '';
           if (me.services.includes('ops-dashboard')) {
-            window.location.replace('/ops');
+            window.location.replace(`/ops${branchQuery}`);
             return;
           }
           if (me.services.includes('kitchen-board')) {
-            window.location.replace('/kitchen');
+            window.location.replace(`/kitchen${branchQuery}`);
             return;
           }
           if (me.services.includes('customer-order')) {
-            window.location.replace('/m');
+            window.location.replace(`/m${branchQuery}`);
             return;
           }
         }

@@ -20,6 +20,13 @@
 - `licenses`
 - `audit_logs`
 
+## Access and Branch Management Tables
+- `access_members`: tenant owner account mapped to a domain and service set.
+- `access_staff`: per-member staff users and roles.
+- `access_branches`: branch definitions per member (`slug`, `name`, optional `address`, `active`).
+
+`access_branches` uniqueness is `(member_id, slug)` to support multiple branches under one domain while keeping stable branch slugs.
+
 ## Tenant and Branch Isolation
 - Session context determines active tenant and branch.
 - Client-provided tenant identity is never trusted.

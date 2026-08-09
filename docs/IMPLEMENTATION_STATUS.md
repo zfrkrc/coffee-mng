@@ -6,6 +6,13 @@
 - Status: Core stack operational
 
 ## Completed in This Iteration
+- Multi-branch support added for a single tenant domain.
+  - Added `access_branches` model (slug/name/address/active) in Prisma schema.
+  - Added superadmin APIs for branch CRUD-lite (`list`, `create`, `active toggle`).
+  - Added Hero panel branch management UI.
+  - Tenant login now accepts optional `branchSlug` and persists it in JWT claim.
+  - Customer runtime state is now partitioned by `domain::branchSlug` (fallback `domain`).
+  - Branch isolation now applies to menu, table, inventory, order, kitchen and AI-station datasets.
 - Prisma runtime init issue fixed for API container build.
   - Root cause: `pnpm deploy` preserved placeholder Prisma client in deployed tree.
   - Fix: regenerate Prisma client inside `/app/out` during API image build.

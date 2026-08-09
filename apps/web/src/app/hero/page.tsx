@@ -35,9 +35,21 @@ type Staff = {
   createdAt: string;
 };
 
+type Branch = {
+  id: string;
+  memberId: string;
+  slug: string;
+  name: string;
+  address?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export default function HeroPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [staffByMember, setStaffByMember] = useState<Record<string, Staff[]>>({});
+  const [branchesByMember, setBranchesByMember] = useState<Record<string, Branch[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [telegramByMember, setTelegramByMember] = useState<Record<string, TelegramConfig>>({});
 
@@ -58,6 +70,13 @@ export default function HeroPage() {
     password: '',
   });
 
+  const [branchForm, setBranchForm] = useState({
+    memberId: '',
+    slug: '',
+    name: '',
+    address: '',
+  });
+
   async function loadMembers() {
     try {
       const res = await fetch(`/api/access/members?requestedBy=${encodeURIComponent(SUPERADMIN_EMAIL)}`, {
@@ -69,15 +88,26 @@ export default function HeroPage() {
       setError(null);
 
       const nextStaff: Record<string, Staff[]> = {};
+      const nextBranches: Record<string, Branch[]> = {};
       const nextTelegram: Record<string, TelegramConfig> = {};
       for (const member of json.items) {
         const sres = await fetch(
           `/api/access/members/${member.id}/staff?requestedBy=${encodeURIComponent(SUPERADMIN_EMAIL)}`,
           { cache: 'no-store' },
         );
-        if (!sres.ok) continue;
-        const sjson = (await sres.json()) as { items: Staff[] };
-        nextStaff[member.id] = sjson.items;
+        if (sres.ok) {
+          const sjson = (await sres.json()) as { items: Staff[] };
+          nextStaff[member.id] = sjson.items;
+        }
+
+        const bres = await fetch(
+          `/api/access/members/${member.id}/branches?requestedBy=${encodeURIComponent(SUPERADMIN_EMAIL)}`,
+          { cache: 'no-store' },
+        );
+        if (bres.ok) {
+          const bjson = (await bres.json()) as { items: Branch[] };
+          nextBranches[member.id] = bjson.items;
+        }
 
         const tres = await fetch(
           `/api/access/members/${member.id}/telegram?requestedBy=${encodeURIComponent(SUPERADMIN_EMAIL)}`,
@@ -88,10 +118,14 @@ export default function HeroPage() {
         }
       }
       setStaffByMember(nextStaff);
+      setBranchesByMember(nextBranches);
       setTelegramByMember(nextTelegram);
 
       if (!staffForm.memberId && json.items.length > 0) {
         setStaffForm((prev) => ({ ...prev, memberId: json.items[0].id }));
+      }
+      if (!branchForm.memberId && json.items.length > 0) {
+        setBranchForm((prev) => ({ ...prev, memberId: json.items[0].id }));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Yukleme hatasi');
@@ -165,6 +199,25 @@ export default function HeroPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled, botToken, chatId, requestedBy: SUPERADMIN_EMAIL }),
+    });
+    await loadMembers();
+  }
+
+  async function createBranch() {
+    await fetch('/api/access/branches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...branchForm, requestedBy: SUPERADMIN_EMAIL }),
+    });
+    setBranchForm((prev) => ({ ...prev, slug: '', name: '', address: '' }));
+    await loadMembers();
+  }
+
+  async function setBranchActive(branchId: string, active: boolean) {
+    await fetch('/api/access/branches/active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branchId, active, requestedBy: SUPERADMIN_EMAIL }),
     });
     await loadMembers();
   }
@@ -250,6 +303,20 @@ export default function HeroPage() {
                 </div>
               </div>
 
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-semibold">Subeler</p>
+                <div className="space-y-1.5">
+                  {(branchesByMember[member.id] ?? []).map((branch) => (
+                    <div key={branch.id} className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-xs dark:border-slate-700">
+                      <span>{branch.name} · {branch.slug}{branch.address ? ` · ${branch.address}` : ''}</span>
+                      <button onClick={() => void setBranchActive(branch.id, !branch.active)} className="rounded border border-slate-300 px-1.5 py-0.5 dark:border-slate-700">
+                        {branch.active ? 'Kapat' : 'Ac'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <TelegramSection memberId={member.id} config={telegramByMember[member.id]} onSave={saveTelegram} />
             </article>
           ))}
@@ -274,6 +341,21 @@ export default function HeroPage() {
               <option value="viewer">viewer</option>
             </select>
             <button onClick={() => void createStaff()} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm text-white">Ekle</button>
+          </div>
+        </section>
+
+        <section className="surface-card mt-6 rounded-2xl p-4">
+          <h2 className="mb-3 text-lg font-semibold">Sube ekle</h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <select value={branchForm.memberId} onChange={(e) => setBranchForm((f) => ({ ...f, memberId: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.displayName}</option>
+              ))}
+            </select>
+            <input value={branchForm.slug} onChange={(e) => setBranchForm((f) => ({ ...f, slug: e.target.value }))} placeholder="slug (ayranci)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+            <input value={branchForm.name} onChange={(e) => setBranchForm((f) => ({ ...f, name: e.target.value }))} placeholder="Sube adi" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+            <input value={branchForm.address} onChange={(e) => setBranchForm((f) => ({ ...f, address: e.target.value }))} placeholder="Adres" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+            <button onClick={() => void createBranch()} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm text-white">Sube ekle</button>
           </div>
         </section>
       </section>

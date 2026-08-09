@@ -178,8 +178,26 @@ model AccessMember {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   staff AccessStaff[]
+  branches AccessBranch[]
 
   @@map("access_members")
+}
+
+model AccessBranch {
+  id          String   @id
+  memberId    String   @map("member_id")
+  slug        String
+  name        String
+  address     String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  member AccessMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, slug])
+  @@index([memberId, active])
+  @@map("access_branches")
 }
 
 model AccessStaff {

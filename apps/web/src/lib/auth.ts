@@ -4,6 +4,12 @@ export type AuthUser = {
   role: string;
   services: string[];
   domain: string;
+  branch?: {
+    id: string;
+    slug: string;
+    name: string;
+    address?: string;
+  };
   name: string;
   exp: number;
 };

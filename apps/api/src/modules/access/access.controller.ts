@@ -85,12 +85,45 @@ class StaffActiveDto {
   requestedBy!: string;
 }
 
+class CreateBranchDto {
+  @IsString()
+  memberId!: string;
+
+  @IsString()
+  slug!: string;
+
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsString()
+  requestedBy!: string;
+}
+
+class BranchActiveDto {
+  @IsString()
+  branchId!: string;
+
+  @IsBoolean()
+  active!: boolean;
+
+  @IsString()
+  requestedBy!: string;
+}
+
 class LoginDto {
   @IsString()
   email!: string;
 
   @IsString()
   password!: string;
+
+  @IsOptional()
+  @IsString()
+  branchSlug?: string;
 }
 
 class SetPasswordDto {
@@ -181,6 +214,24 @@ export class AccessController {
     return this.access.setStaffActive(body.staffId, body.active);
   }
 
+  @Get('members/:memberId/branches')
+  async listBranches(@Param('memberId') memberId: string, @Query('requestedBy') requestedBy: string) {
+    this.guardSuperadmin(requestedBy);
+    return { items: await this.access.listBranches(memberId) };
+  }
+
+  @Post('branches')
+  async createBranch(@Body() body: CreateBranchDto) {
+    this.guardSuperadmin(body.requestedBy);
+    return this.access.createBranch(body.memberId, body);
+  }
+
+  @Post('branches/active')
+  async setBranchActive(@Body() body: BranchActiveDto) {
+    this.guardSuperadmin(body.requestedBy);
+    return this.access.setBranchActive(body.branchId, body.active);
+  }
+
   @Post('members/:memberId/password')
   async setMemberPassword(@Param('memberId') memberId: string, @Body() body: SetPasswordDto) {
     this.guardSuperadmin(body.requestedBy);
@@ -211,6 +262,7 @@ export class AccessController {
   async loginByHost(@Req() req: Request, @Body() body: LoginDto) {
     const domain = this.getRequestDomain(req);
     const principal = await this.access.loginWithDomain(domain, body.email, body.password);
+    const branch = body.branchSlug ? await this.access.getBranchByDomainSlug(domain, body.branchSlug) : null;
     const token = signAuthToken(
       {
         sub: principal.memberId,
@@ -218,13 +270,14 @@ export class AccessController {
         role: principal.role,
         services: principal.services,
         domain: principal.domain,
+        branch: branch ? { id: branch.id, slug: branch.slug, name: branch.name, address: branch.address ?? '' } : undefined,
         name: principal.displayName,
       },
       this.env.JWT_SECRET,
       this.env.JWT_ISSUER,
       this.env.JWT_ACCESS_TTL_SECONDS,
     );
-    return { token, user: principal };
+    return { token, user: { ...principal, branch } };
   }
 
   @Post('superadmin/login')
@@ -272,6 +325,7 @@ export class AccessController {
       role: payload.role,
       services: payload.services,
       domain: payload.domain,
+      branch: payload.branch,
       name: payload.name,
       exp: payload.exp,
     };

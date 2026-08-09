@@ -6,10 +6,10 @@ import type { AiStationForecast, AiStationRecommendation, AiStationSnapshot, AiS
 export class AiStationService {
   constructor(private readonly customer: CustomerService) {}
 
-  getSnapshot(): AiStationSnapshot {
-    const overview = this.customer.getOverview();
-    const report = this.customer.getDailyReport();
-    const inventory = this.customer.getInventory();
+  getSnapshot(domain: string): AiStationSnapshot {
+    const overview = this.customer.getOverview(domain);
+    const report = this.customer.getDailyReport(domain);
+    const inventory = this.customer.getInventory(domain);
 
     const recommendations: AiStationRecommendation[] = [];
 

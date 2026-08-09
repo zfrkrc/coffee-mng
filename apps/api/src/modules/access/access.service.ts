@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppError, uuidv7 } from '@cafeos/shared';
-import type { MemberAccount, ServiceKey, StaffUser } from './access.types';
+import type { BranchInfo, MemberAccount, ServiceKey, StaffUser } from './access.types';
 import { PRISMA } from '../../core/database/prisma.module';
 import type { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
@@ -99,6 +99,57 @@ export class AccessService {
     return rows.map((row) => this.toStaffUser(row));
   }
 
+  async listBranches(memberId: string): Promise<BranchInfo[]> {
+    const rows = await this.prisma.accessBranch.findMany({
+      where: { memberId },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((row) => this.toBranchInfo(row));
+  }
+
+  async createBranch(memberId: string, input: { slug: string; name: string; address?: string }): Promise<BranchInfo> {
+    const member = await this.prisma.accessMember.findUnique({ where: { id: memberId } });
+    if (!member) throw AppError.notFound('Member not found');
+    const slug = this.normalizeSlug(input.slug);
+    const name = input.name.trim();
+    if (!slug || !name) throw AppError.validation('branch slug and name are required');
+
+    const duplicate = await this.prisma.accessBranch.findUnique({
+      where: { memberId_slug: { memberId, slug } },
+    });
+    if (duplicate) throw AppError.conflict('Branch slug already exists for member');
+
+    const created = await this.prisma.accessBranch.create({
+      data: {
+        id: uuidv7(),
+        memberId,
+        slug,
+        name,
+        address: input.address?.trim() || null,
+        active: true,
+      },
+    });
+    return this.toBranchInfo(created);
+  }
+
+  async setBranchActive(branchId: string, active: boolean): Promise<BranchInfo> {
+    const branch = await this.prisma.accessBranch.findUnique({ where: { id: branchId } });
+    if (!branch) throw AppError.notFound('Branch not found');
+    const updated = await this.prisma.accessBranch.update({ where: { id: branchId }, data: { active } });
+    return this.toBranchInfo(updated);
+  }
+
+  async getBranchByDomainSlug(domain: string, slug: string): Promise<BranchInfo> {
+    const member = await this.prisma.accessMember.findFirst({ where: { domain: domain.trim().toLowerCase(), active: true } });
+    if (!member) throw AppError.notFound('Member domain not found');
+    const normalizedSlug = this.normalizeSlug(slug);
+    const branch = await this.prisma.accessBranch.findUnique({
+      where: { memberId_slug: { memberId: member.id, slug: normalizedSlug } },
+    });
+    if (!branch || !branch.active) throw AppError.notFound('Branch not found');
+    return this.toBranchInfo(branch);
+  }
+
   async createStaff(memberId: string, input: { email: string; displayName: string; role: StaffUser['role']; password?: string }): Promise<StaffUser> {
     const member = await this.prisma.accessMember.findUnique({ where: { id: memberId } });
     if (!member) throw AppError.notFound('Member not found');
@@ -135,6 +186,7 @@ export class AccessService {
   async getAccessByToken(token: string): Promise<{
     member: Pick<MemberAccount, 'id' | 'email' | 'slug' | 'displayName' | 'domain' | 'services' | 'active'>;
     staff: StaffUser[];
+    branches: BranchInfo[];
   }> {
     const member = await this.prisma.accessMember.findUnique({ where: { token } });
     if (!member) throw AppError.notFound('Token not found');
@@ -149,12 +201,14 @@ export class AccessService {
         active: member.active,
       },
       staff: await this.listStaff(member.id),
+      branches: await this.listBranches(member.id),
     };
   }
 
   async getAccessByDomainAndSlug(domain: string, slug: string): Promise<{
     member: Pick<MemberAccount, 'id' | 'email' | 'slug' | 'displayName' | 'domain' | 'services' | 'active'>;
     staff: StaffUser[];
+    branches: BranchInfo[];
   }> {
     const normalizedDomain = domain.trim().toLowerCase();
     const normalizedSlug = this.normalizeSlug(slug);
@@ -176,6 +230,7 @@ export class AccessService {
         active: member.active,
       },
       staff: await this.listStaff(member.id),
+      branches: await this.listBranches(member.id),
     };
   }
 
@@ -357,6 +412,28 @@ export class AccessService {
       role: row.role as StaffUser['role'],
       active: row.active,
       createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  private toBranchInfo(row: {
+    id: string;
+    memberId: string;
+    slug: string;
+    name: string;
+    address: string | null;
+    active: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): BranchInfo {
+    return {
+      id: row.id,
+      memberId: row.memberId,
+      slug: row.slug,
+      name: row.name,
+      address: row.address ?? undefined,
+      active: row.active,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
     };
   }
 }
