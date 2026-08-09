@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { authFetch } from '../../lib/auth';
 
 const SUPERADMIN_EMAIL = 'zafer@zaferkaraca.net';
 const SERVICE_KEYS = ['customer-order', 'kitchen-board', 'qr-management', 'ops-dashboard', 'ai-station'] as const;
@@ -46,12 +47,30 @@ type Branch = {
   updatedAt: string;
 };
 
+type AiUsageAggregate = {
+  windowHours: number;
+  totalInvocations: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCostTl: number;
+  byDomain: Array<{
+    domainKey: string;
+    invocations: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    totalCostTl: number;
+  }>;
+};
+
 export default function HeroPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [staffByMember, setStaffByMember] = useState<Record<string, Staff[]>>({});
   const [branchesByMember, setBranchesByMember] = useState<Record<string, Branch[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [telegramByMember, setTelegramByMember] = useState<Record<string, TelegramConfig>>({});
+  const [usage24h, setUsage24h] = useState<AiUsageAggregate | null>(null);
 
   const [memberForm, setMemberForm] = useState({
     email: '',
@@ -120,6 +139,11 @@ export default function HeroPage() {
       setStaffByMember(nextStaff);
       setBranchesByMember(nextBranches);
       setTelegramByMember(nextTelegram);
+
+      const usageRes = await authFetch('/api/ai-station/usage?hours=24', { cache: 'no-store' });
+      if (usageRes.ok) {
+        setUsage24h((await usageRes.json()) as AiUsageAggregate);
+      }
 
       if (!staffForm.memberId && json.items.length > 0) {
         setStaffForm((prev) => ({ ...prev, memberId: json.items[0].id }));
@@ -236,6 +260,32 @@ export default function HeroPage() {
         </div>
 
         {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+
+        {usage24h && (
+          <section className="mb-6 rounded-2xl bg-gradient-to-r from-indigo-700 via-blue-700 to-cyan-700 p-4 text-white shadow-lg shadow-indigo-900/25">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">AI Kullanim Ozeti (son {usage24h.windowHours}s)</h2>
+              <p className="text-xs text-cyan-100">Token matematik + maliyet gorunurlugu</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <MetricCell title="Cagri" value={`${usage24h.totalInvocations}`} />
+              <MetricCell title="Prompt token" value={`${usage24h.totalPromptTokens}`} />
+              <MetricCell title="Cevap token" value={`${usage24h.totalCompletionTokens}`} />
+              <MetricCell title="Toplam token" value={`${usage24h.totalTokens}`} />
+              <MetricCell title="Tahmini maliyet" value={`${usage24h.totalCostTl.toFixed(4)} TL`} />
+            </div>
+            <div className="mt-3 grid gap-2 lg:grid-cols-2">
+              {usage24h.byDomain.slice(0, 6).map((row) => (
+                <div key={row.domainKey} className="rounded-lg border border-white/25 bg-white/10 p-2 text-xs">
+                  <p className="font-semibold">{row.domainKey}</p>
+                  <p>
+                    {row.invocations} cagri · {row.totalTokens} token · {row.totalCostTl.toFixed(4)} TL
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="surface-card mb-6 rounded-2xl p-4">
           <h2 className="mb-3 text-lg font-semibold">Yeni uye</h2>
@@ -360,6 +410,15 @@ export default function HeroPage() {
         </section>
       </section>
     </main>
+  );
+}
+
+function MetricCell({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/25 bg-white/10 p-2">
+      <p className="text-[11px] uppercase tracking-wide text-cyan-100">{title}</p>
+      <p className="mt-1 text-lg font-semibold">{value}</p>
+    </div>
   );
 }
 

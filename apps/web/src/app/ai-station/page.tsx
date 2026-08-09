@@ -22,6 +22,12 @@ type Snapshot = {
     forecastQty: number;
     confidence: number;
   }>;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    costTl: number;
+  };
 };
 
 export default function AiStationPage() {
@@ -77,6 +83,14 @@ export default function AiStationPage() {
                   {data.summary.status}
                 </span>
               </div>
+              {data.usage && (
+                <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                  <UsageCell title="Prompt" value={`${data.usage.promptTokens}`} />
+                  <UsageCell title="Completion" value={`${data.usage.completionTokens}`} />
+                  <UsageCell title="Toplam" value={`${data.usage.totalTokens}`} />
+                  <UsageCell title="Tahmini TL" value={data.usage.costTl.toFixed(4)} />
+                </div>
+              )}
             </section>
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -117,5 +131,14 @@ export default function AiStationPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function UsageCell({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/30 bg-white/10 p-2">
+      <p className="text-[11px] uppercase tracking-wide text-sky-100">{title}</p>
+      <p className="mt-1 text-base font-semibold">{value}</p>
+    </div>
   );
 }

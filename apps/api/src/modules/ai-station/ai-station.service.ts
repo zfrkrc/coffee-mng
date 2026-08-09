@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { CustomerService } from '../customer/customer.service';
 import type { AiStationForecast, AiStationRecommendation, AiStationSnapshot, AiStationSummary } from './ai-station.types';
+import { AiUsageService, type AiUsageRecord } from './ai-usage.service';
 
 @Injectable()
 export class AiStationService {
-  constructor(private readonly customer: CustomerService) {}
+  constructor(
+    private readonly customer: CustomerService,
+    private readonly aiUsage: AiUsageService,
+  ) {}
 
-  getSnapshot(domain: string): AiStationSnapshot {
+  async getSnapshot(domain: string): Promise<AiStationSnapshot & { usage: AiUsageRecord }> {
     const overview = this.customer.getOverview(domain);
     const report = this.customer.getDailyReport(domain);
     const inventory = this.customer.getInventory(domain);
@@ -64,13 +68,24 @@ export class AiStationService {
 
     const forecasts = this.buildForecasts(report, inventory);
     const summary = this.buildSummary(overview.openOrders, lowStock.length, report.orderCount);
+    const completionText = JSON.stringify({ summary, recommendations, forecasts });
+    const usage = await this.aiUsage.record({
+      domainKey: domain,
+      promptText: `ai_station_snapshot ${domain}`,
+      completionText,
+    });
 
     return {
       generatedAt: new Date().toISOString(),
       summary,
       recommendations,
       forecasts,
+      usage,
     };
+  }
+
+  getUsageAggregate(hours: number) {
+    return this.aiUsage.getAggregate(hours);
   }
 
   private buildForecasts(

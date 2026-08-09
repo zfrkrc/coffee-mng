@@ -36,6 +36,11 @@
   - PWA service worker cache bumped (`v2`) and navigation strategy moved to network-first to reduce stale bundle issues.
 - QR SVG output hardened.
   - Escaped QR target label in SVG (`&` -> `&amp;`) to prevent XML parsing errors on branch URLs.
+- AI token usage tracking added (Redis backed, 30-day retention).
+  - Per AI snapshot call: estimated `promptTokens`, `completionTokens`, `totalTokens`, `costTl` recorded.
+  - Cost math (TL): prompt and completion token rates are calculated per 1K token.
+  - New superadmin endpoint: `GET /api/ai-station/usage?hours=24`.
+  - Hero panel now shows 24h usage totals + domain breakdown (token and cost visibility).
 
 ## Current Runtime State
 - `cafe-api`: healthy

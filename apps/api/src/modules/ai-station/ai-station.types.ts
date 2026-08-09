@@ -25,3 +25,10 @@ export interface AiStationSnapshot {
   recommendations: AiStationRecommendation[];
   forecasts: AiStationForecast[];
 }
+
+export interface AiUsageSummary {
+  estimatedPromptTokens: number;
+  estimatedCompletionTokens: number;
+  estimatedTotalTokens: number;
+  estimatedCostTl: number;
+}
