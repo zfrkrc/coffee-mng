@@ -30,6 +30,12 @@
   - Constraint: `ready` status orders cannot be edited.
   - Editable fields: `tableCode`, `items[]` (productId + quantity).
   - Kitchen UI now includes inline edit form per order card for non-ready orders.
+- First-load and refresh stability improved on web.
+  - Kitchen page now handles `401/403` by stopping poll loop and redirecting to login.
+  - Login page query parsing hardened for refresh path.
+  - PWA service worker cache bumped (`v2`) and navigation strategy moved to network-first to reduce stale bundle issues.
+- QR SVG output hardened.
+  - Escaped QR target label in SVG (`&` -> `&amp;`) to prevent XML parsing errors on branch URLs.
 
 ## Current Runtime State
 - `cafe-api`: healthy

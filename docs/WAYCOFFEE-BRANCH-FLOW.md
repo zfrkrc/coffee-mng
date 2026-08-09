@@ -28,6 +28,10 @@ Alternatif direkt linkler:
 - Kitchen ve QR ekranlarinda `Isletme paneli` geri linkleri vardir.
 - Tum bu linkler secili branch query'sini korur (`?branch=...`).
 
+## QR Notu (XML)
+- Branch query iceren QR URL'lerinde (`.../m?table=T1&branch=...`) SVG metin alani XML escape ile basilir.
+- Bu sayede `&` karakteri `&amp;` olur ve QR endpoint'i tarayicida XML parse hatasi vermez.
+
 ## Superadmin Tarafindan Yonetim
 - Hero panelde uye kartinda `Subeler` listesi vardir.
 - Alttaki `Sube ekle` bolumunden yeni sube acilir.
