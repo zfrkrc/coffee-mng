@@ -23,6 +23,13 @@ type ResolveResponse = {
     role: 'admin' | 'cashier' | 'waiter' | 'kitchen' | 'viewer';
     active: boolean;
   }>;
+  branches: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    address?: string;
+    active: boolean;
+  }>;
 };
 
 const SERVICE_LINKS: Record<ServiceKey, { href: string; label: string }> = {
@@ -155,6 +162,23 @@ export default function MemberEntryPage() {
                       </p>
                     ))
                   )}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-3 text-sm dark:border-slate-700">
+                <p className="font-medium">Sube secimi</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {(data.branches ?? []).filter((b) => b.active).map((branch) => (
+                    <a
+                      key={branch.id}
+                      href={`/login?branch=${encodeURIComponent(branch.slug)}`}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      <div className="font-semibold">{branch.name}</div>
+                      <div>{branch.slug}{branch.address ? ` · ${branch.address}` : ''}</div>
+                      <div className="mt-1 text-[11px] text-emerald-700">Bu subeye giris yap</div>
+                    </a>
+                  ))}
                 </div>
               </div>
             </>
