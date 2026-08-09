@@ -4,6 +4,7 @@ import { IsArray, IsInt, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CustomerService } from './customer.service';
 import type { Request, Response } from 'express';
+import QRCode from 'qrcode';
 
 class CreateOrderItemDto {
   @IsString()
@@ -63,19 +64,26 @@ export class CustomerController {
   }
 
   @Get('qr/:tableCode')
-  qr(@Param('tableCode') tableCode: string, @Req() req: Request, @Res() res: Response) {
+  async qr(@Param('tableCode') tableCode: string, @Req() req: Request, @Res() res: Response) {
     const table = this.customer.tableByCode(tableCode.toUpperCase());
     const proto = req.headers['x-forwarded-proto']?.toString() ?? req.protocol;
     const host = req.headers['x-forwarded-host']?.toString() ?? req.get('host') ?? 'localhost:3003';
     const target = `${proto}://${host}/m?table=${table.code}`;
-    const encoded = encodeURIComponent(target);
+
+    const qrDataUrl = await QRCode.toDataURL(target, {
+      type: 'image/png',
+      margin: 1,
+      width: 560,
+      errorCorrectionLevel: 'M',
+    });
+
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="420" height="460" viewBox="0 0 420 460">
   <rect width="420" height="460" fill="#f8fafc"/>
   <rect x="20" y="20" width="380" height="420" rx="20" fill="#ffffff" stroke="#cbd5e1"/>
   <text x="210" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#0f172a">CafeOS ${table.name}</text>
   <text x="210" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#475569">QR okut ve siparis ver</text>
-  <image x="70" y="126" width="280" height="280" href="https://api.qrserver.com/v1/create-qr-code/?size=560x560&amp;data=${encoded}"/>
+  <image x="70" y="126" width="280" height="280" href="${qrDataUrl}"/>
   <text x="210" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">${target}</text>
 </svg>`;
     res.setHeader('content-type', 'image/svg+xml; charset=utf-8');
