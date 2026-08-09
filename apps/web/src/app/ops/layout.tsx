@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { clearAuthToken, fetchMe, type AuthUser } from '../../lib/auth';
+import BranchLoginSwitcher from '../../components/BranchLoginSwitcher';
 
 export default function OpsLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -41,17 +42,20 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 px-4 py-2 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/70">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <p className="text-xs text-slate-500">{user?.name} · {user?.role}</p>
-          <button
-            onClick={() => {
-              clearAuthToken();
-              window.location.href = '/login';
-            }}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-          >
-            Cikis
-          </button>
+        <div className="mx-auto max-w-7xl space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500">{user?.name} · {user?.role}</p>
+            <button
+              onClick={() => {
+                clearAuthToken();
+                window.location.href = '/login';
+              }}
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+            >
+              Cikis
+            </button>
+          </div>
+          <BranchLoginSwitcher />
         </div>
       </header>
       {children}

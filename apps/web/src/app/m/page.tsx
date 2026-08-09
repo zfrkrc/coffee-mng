@@ -44,6 +44,8 @@ type ApiOrderResponse = {
   totalCents: number;
 };
 
+const MENU_FALLBACK_IMAGE = '/menu-placeholder.svg';
+
 const CATEGORY_LABEL: Record<MenuItem['category'], string> = {
   coffee: 'Kahve',
   tea: 'Çay',
@@ -242,9 +244,16 @@ export default function CustomerPage() {
               )}
               {filtered.map((item) => (
                 <article key={item.id} className="surface-card overflow-hidden rounded-2xl p-0">
-                  {item.imageUrl && (
-                    <img src={item.imageUrl} alt={item.name} className="h-28 w-full object-cover sm:h-32" loading="lazy" />
-                  )}
+                  <img
+                    src={item.imageUrl || MENU_FALLBACK_IMAGE}
+                    alt={item.name}
+                    className="h-28 w-full object-cover sm:h-32"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = MENU_FALLBACK_IMAGE;
+                    }}
+                  />
                   <div className="p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     {CATEGORY_LABEL[item.category]}
