@@ -272,6 +272,7 @@ export class CustomerController {
     const host = req.headers['x-forwarded-host']?.toString() ?? req.get('host') ?? 'localhost:3003';
     const branchQuery = branch ? `&branch=${encodeURIComponent(branch)}` : '';
     const target = `${proto}://${host}/m?table=${table.code}${branchQuery}`;
+    const targetLabel = this.escapeXml(target);
 
     const qrDataUrl = await QRCode.toDataURL(target, {
       type: 'image/png',
@@ -287,9 +288,18 @@ export class CustomerController {
   <text x="210" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#0f172a">CafeOS ${table.name}</text>
   <text x="210" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#475569">QR okut ve siparis ver</text>
   <image x="70" y="126" width="280" height="280" href="${qrDataUrl}"/>
-  <text x="210" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">${target}</text>
+  <text x="210" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">${targetLabel}</text>
 </svg>`;
     res.setHeader('content-type', 'image/svg+xml; charset=utf-8');
     res.send(svg);
+  }
+
+  private escapeXml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 }
