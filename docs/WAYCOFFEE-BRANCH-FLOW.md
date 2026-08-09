@@ -22,6 +22,12 @@ Alternatif direkt linkler:
 - Kutudaki ad aktif subeyi gosterir.
 - Ayni kutudan diger subeye gecmek icin login linki vardir.
 
+## Hizli Gezinme
+- Ops sayfasinda hizli bolum menusu vardir: `Menu`, `Depo`, `Masalar`, `Rapor`.
+- Ops ustunde kisayol linkleri vardir: `Mutfak`, `Masa QR`, `Musteri`.
+- Kitchen ve QR ekranlarinda `Isletme paneli` geri linkleri vardir.
+- Tum bu linkler secili branch query'sini korur (`?branch=...`).
+
 ## Superadmin Tarafindan Yonetim
 - Hero panelde uye kartinda `Subeler` listesi vardir.
 - Alttaki `Sube ekle` bolumunden yeni sube acilir.

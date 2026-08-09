@@ -19,6 +19,12 @@ export default function KitchenPage() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [branchSlug, setBranchSlug] = useState<string | null>(null);
+  const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
+
+  useEffect(() => {
+    setBranchSlug(new URLSearchParams(window.location.search).get('branch'));
+  }, []);
 
   async function loadOrders() {
     try {
@@ -67,8 +73,11 @@ export default function KitchenPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Canli siparis akis paneli</p>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/qr" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+            <a href={`/qr${branchQuery}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
               Masa QR
+            </a>
+            <a href={`/ops${branchQuery}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+              Isletme
             </a>
             <button onClick={() => void loadOrders()} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
               Yenile

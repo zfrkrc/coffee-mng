@@ -3,19 +3,59 @@
 import { useEffect, useState } from 'react';
 import { saveAuthToken } from '../../lib/auth';
 
+type BranchItem = {
+  id: string;
+  slug: string;
+  name: string;
+  address?: string;
+  active: boolean;
+};
+
+type ResolveResponse = {
+  member: {
+    id: string;
+    displayName: string;
+  };
+  branches?: BranchItem[];
+};
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [branchSlug, setBranchSlug] = useState('');
+  const [branches, setBranches] = useState<BranchItem[]>([]);
+  const isSuperadminMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('superadmin') === '1';
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get('branch');
     if (p) setBranchSlug(p);
   }, []);
 
-  const isSuperadminMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('superadmin') === '1';
+  useEffect(() => {
+    if (isSuperadminMode) return;
+    async function loadBranches() {
+      try {
+        const rootRes = await fetch('/api/access/resolve-host-root', { cache: 'no-store' });
+        if (!rootRes.ok) return;
+        const root = (await rootRes.json()) as { slug?: string };
+        if (!root.slug) return;
+
+        const res = await fetch(`/api/access/resolve-host/${encodeURIComponent(root.slug)}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = (await res.json()) as ResolveResponse;
+        const activeBranches = (json.branches ?? []).filter((b) => b.active);
+        setBranches(activeBranches);
+        if (!branchSlug && activeBranches.length > 0) {
+          setBranchSlug(activeBranches[0].slug);
+        }
+      } catch {
+        // optional helper load; login still works with manual input
+      }
+    }
+    void loadBranches();
+  }, [branchSlug, isSuperadminMode]);
 
   async function submit() {
     setLoading(true);
@@ -62,12 +102,28 @@ export default function LoginPage() {
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
           {!isSuperadminMode && (
-            <input
-              value={branchSlug}
-              onChange={(e) => setBranchSlug(e.target.value)}
-              placeholder="sube slug (or: ayranci, bahceli)"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-            />
+            <>
+              {branches.length > 0 ? (
+                <select
+                  value={branchSlug}
+                  onChange={(e) => setBranchSlug(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                >
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.slug}>
+                      {branch.name} ({branch.slug})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={branchSlug}
+                  onChange={(e) => setBranchSlug(e.target.value)}
+                  placeholder="sube slug (or: ayranci, bahceli)"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                />
+              )}
+            </>
           )}
           <button
             onClick={() => void submit()}

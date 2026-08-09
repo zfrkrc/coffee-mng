@@ -14,6 +14,12 @@ type TableQr = {
 export default function QrPage() {
   const [tables, setTables] = useState<TableQr[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [branchSlug, setBranchSlug] = useState<string | null>(null);
+  const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
+
+  useEffect(() => {
+    setBranchSlug(new URLSearchParams(window.location.search).get('branch'));
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -40,9 +46,14 @@ export default function QrPage() {
             <h1 className="text-2xl font-bold">Masa QR Yonetimi</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">Her masa kendi QR kodu ile siparis ekranina girer</p>
           </div>
-          <a href="/kitchen" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
-            Mutfak paneli
-          </a>
+          <div className="flex items-center gap-2">
+            <a href={`/ops${branchQuery}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+              Isletme paneli
+            </a>
+            <a href={`/kitchen${branchQuery}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+              Mutfak paneli
+            </a>
+          </div>
         </div>
 
         {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}

@@ -424,14 +424,107 @@ export class CustomerService {
     const existing = this.states.get(key);
     if (existing) return existing;
 
-    const created: CustomerState = {
-      tables: this.defaultTables.map((table) => ({ ...table })),
-      menu: this.defaultMenu.map((item) => ({ ...item })),
-      inventory: this.defaultInventory.map((item) => ({ ...item })),
-      orders: new Map<string, StoredOrder>(),
-    };
+    const created = this.buildInitialState(this.extractBranchSlug(key));
     this.states.set(key, created);
     return created;
+  }
+
+  private extractBranchSlug(domainKey: string): string | null {
+    const idx = domainKey.indexOf('::');
+    if (idx === -1) return null;
+    const slug = domainKey.slice(idx + 2).trim().toLowerCase();
+    return slug || null;
+  }
+
+  private buildInitialState(branchSlug: string | null): CustomerState {
+    const tables = this.defaultTables.map((table) => ({ ...table }));
+    const menu = this.defaultMenu.map((item) => ({ ...item }));
+    const inventory = this.defaultInventory.map((item) => ({ ...item }));
+
+    if (branchSlug === 'ayranci') {
+      for (let i = 0; i < tables.length; i += 1) {
+        tables[i].name = `Ayranci Masa ${i + 1}`;
+      }
+
+      menu.push({
+        id: 'coldbrew',
+        name: 'Cold Brew',
+        category: 'coffee',
+        priceCents: 16000,
+        note: '12 saat demleme, buz ile servis',
+        imageUrl: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=900&q=80',
+      });
+      menu.push({
+        id: 'acai',
+        name: 'Acai Bowl',
+        category: 'food',
+        priceCents: 21000,
+        note: 'Granola ve mevsim meyveleri',
+        imageUrl: 'https://images.unsplash.com/photo-1511690656952-34342bb7c2f2?auto=format&fit=crop&w=900&q=80',
+      });
+      this.updateMenuPrice(menu, 'latte', 15000);
+      this.updateMenuPrice(menu, 'americano', 11500);
+    }
+
+    if (branchSlug === 'bahceli') {
+      for (let i = 0; i < tables.length; i += 1) {
+        tables[i].name = `Bahceli Masa ${i + 1}`;
+      }
+      tables.push({ id: 't-9', code: 'T9', name: 'Bahceli Masa 9', capacity: 4 });
+      tables.push({ id: 't-10', code: 'T10', name: 'Bahceli Masa 10', capacity: 6 });
+
+      menu.push({
+        id: 'flatwhite',
+        name: 'Flat White',
+        category: 'coffee',
+        priceCents: 15500,
+        note: 'Cift ristretto, mikro kopuk sut',
+        imageUrl: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80',
+      });
+      menu.push({
+        id: 'cheesecake',
+        name: 'San Sebastian',
+        category: 'dessert',
+        priceCents: 19000,
+        note: 'Gunluk taze cikartilir',
+        imageUrl: 'https://images.unsplash.com/photo-1488477304112-4944851de03d?auto=format&fit=crop&w=900&q=80',
+      });
+      this.updateMenuPrice(menu, 'toast', 19500);
+      this.updateMenuPrice(menu, 'tiramisu', 17500);
+    }
+
+    this.ensureInventoryForMenu(menu, inventory);
+
+    return {
+      tables,
+      menu,
+      inventory,
+      orders: new Map<string, StoredOrder>(),
+    };
+  }
+
+  private updateMenuPrice(menu: MenuItem[], productId: string, priceCents: number): void {
+    const item = menu.find((m) => m.id === productId);
+    if (!item) return;
+    item.priceCents = priceCents;
+  }
+
+  private ensureInventoryForMenu(menu: MenuItem[], inventory: InventoryItem[]): void {
+    for (const item of menu) {
+      const existing = inventory.find((inv) => inv.productId === item.id);
+      if (existing) {
+        existing.productName = item.name;
+        continue;
+      }
+      inventory.push({
+        id: `inv-${item.id}`,
+        productId: item.id,
+        productName: item.name,
+        unit: 'pcs',
+        stock: 12,
+        threshold: 5,
+      });
+    }
   }
 
   private publicOrder(order: StoredOrder): CustomerOrderView {

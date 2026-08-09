@@ -47,6 +47,8 @@ type DailyReport = {
   tableLoad: Array<{ tableCode: string; tableName: string; orders: number }>;
 };
 
+const MENU_FALLBACK_IMAGE = '/menu-placeholder.svg';
+
 export default function OpsPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -54,9 +56,15 @@ export default function OpsPage() {
   const [tables, setTables] = useState<TableItem[]>([]);
   const [report, setReport] = useState<DailyReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [branchSlug, setBranchSlug] = useState<string | null>(null);
 
   const [form, setForm] = useState({ id: '', name: '', category: 'coffee', priceTl: '0', note: '', imageUrl: '' });
   const [tableForm, setTableForm] = useState({ code: '', name: '', capacity: '2' });
+  const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
+
+  useEffect(() => {
+    setBranchSlug(new URLSearchParams(window.location.search).get('branch'));
+  }, []);
 
   async function loadAll() {
     try {
@@ -174,11 +182,19 @@ export default function OpsPage() {
             <p className="text-sm text-emerald-100">Menu, depo, masa ve operasyon yonetimi</p>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/kitchen" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Mutfak</a>
-            <a href="/qr" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Masa QR</a>
+            <a href={`/kitchen${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Mutfak</a>
+            <a href={`/qr${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Masa QR</a>
+            <a href={`/m${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Musteri</a>
             <button onClick={() => void loadAll()} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-emerald-800">Yenile</button>
           </div>
           </div>
+        </div>
+
+        <div className="mb-5 flex flex-wrap gap-2">
+          <a href="#menu" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Menu</a>
+          <a href="#inventory" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Depo</a>
+          <a href="#tables" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Masalar</a>
+          <a href="#reports" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Rapor</a>
         </div>
 
         {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -192,7 +208,7 @@ export default function OpsPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
-          <section className="surface-card rounded-2xl p-4">
+          <section id="menu" className="surface-card rounded-2xl p-4">
             <h2 className="mb-3 text-lg font-semibold">Menu duzenleme</h2>
             <div className="mb-4 grid gap-2 sm:grid-cols-2">
               <input value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} placeholder="id (latte-large)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
@@ -214,9 +230,13 @@ export default function OpsPage() {
                 <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
                   <div className="flex min-w-0 items-center gap-2">
                     <img
-                      src={item.imageUrl || 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=400&q=80'}
+                      src={item.imageUrl || MENU_FALLBACK_IMAGE}
                       alt={item.name}
                       className="h-11 w-11 rounded-md object-cover"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = MENU_FALLBACK_IMAGE;
+                      }}
                     />
                     <span className="truncate">{item.name} ({Math.round(item.priceCents / 100)} TL)</span>
                   </div>
@@ -226,7 +246,7 @@ export default function OpsPage() {
             </div>
           </section>
 
-          <section className="surface-card rounded-2xl p-4">
+          <section id="inventory" className="surface-card rounded-2xl p-4">
             <h2 className="mb-3 text-lg font-semibold">Depo takip</h2>
             {lowStock.length > 0 && (
               <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
@@ -253,7 +273,7 @@ export default function OpsPage() {
           </section>
         </div>
 
-        <section className="surface-card mt-6 rounded-2xl p-4">
+        <section id="tables" className="surface-card mt-6 rounded-2xl p-4">
           <h2 className="mb-3 text-lg font-semibold">Masa durumu ve QR</h2>
           <div className="mb-4 grid gap-2 sm:grid-cols-3">
             <input
@@ -294,7 +314,7 @@ export default function OpsPage() {
           </div>
         </section>
 
-        <section className="surface-card mt-6 rounded-2xl p-4">
+        <section id="reports" className="surface-card mt-6 rounded-2xl p-4">
           <h2 className="mb-3 text-lg font-semibold">Gunluk rapor</h2>
           {!report && <p className="text-sm text-slate-500">Rapor bekleniyor...</p>}
           {report && (
