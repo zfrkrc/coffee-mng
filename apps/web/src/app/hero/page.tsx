@@ -19,6 +19,12 @@ type Member = {
   createdAt: string;
 };
 
+type TelegramConfig = {
+  enabled: boolean;
+  hasToken: boolean;
+  chatId: string | null;
+};
+
 type Staff = {
   id: string;
   memberId: string;
@@ -33,6 +39,7 @@ export default function HeroPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [staffByMember, setStaffByMember] = useState<Record<string, Staff[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [telegramByMember, setTelegramByMember] = useState<Record<string, TelegramConfig>>({});
 
   const [memberForm, setMemberForm] = useState({
     email: '',
@@ -62,6 +69,7 @@ export default function HeroPage() {
       setError(null);
 
       const nextStaff: Record<string, Staff[]> = {};
+      const nextTelegram: Record<string, TelegramConfig> = {};
       for (const member of json.items) {
         const sres = await fetch(
           `/api/access/members/${member.id}/staff?requestedBy=${encodeURIComponent(SUPERADMIN_EMAIL)}`,
@@ -70,8 +78,17 @@ export default function HeroPage() {
         if (!sres.ok) continue;
         const sjson = (await sres.json()) as { items: Staff[] };
         nextStaff[member.id] = sjson.items;
+
+        const tres = await fetch(
+          `/api/access/members/${member.id}/telegram?requestedBy=${encodeURIComponent(SUPERADMIN_EMAIL)}`,
+          { cache: 'no-store' },
+        );
+        if (tres.ok) {
+          nextTelegram[member.id] = (await tres.json()) as TelegramConfig;
+        }
       }
       setStaffByMember(nextStaff);
+      setTelegramByMember(nextTelegram);
 
       if (!staffForm.memberId && json.items.length > 0) {
         setStaffForm((prev) => ({ ...prev, memberId: json.items[0].id }));
@@ -139,6 +156,15 @@ export default function HeroPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ staffId, active, requestedBy: SUPERADMIN_EMAIL }),
+    });
+    await loadMembers();
+  }
+
+  async function saveTelegram(memberId: string, enabled: boolean, botToken?: string, chatId?: string) {
+    await fetch(`/api/access/members/${memberId}/telegram`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled, botToken, chatId, requestedBy: SUPERADMIN_EMAIL }),
     });
     await loadMembers();
   }
@@ -223,6 +249,8 @@ export default function HeroPage() {
                   ))}
                 </div>
               </div>
+
+              <TelegramSection memberId={member.id} config={telegramByMember[member.id]} onSave={saveTelegram} />
             </article>
           ))}
         </section>
@@ -250,5 +278,39 @@ export default function HeroPage() {
         </section>
       </section>
     </main>
+  );
+}
+
+function TelegramSection({
+  memberId,
+  config,
+  onSave,
+}: {
+  memberId: string;
+  config?: TelegramConfig;
+  onSave: (memberId: string, enabled: boolean, botToken?: string, chatId?: string) => Promise<void>;
+}) {
+  const [enabled, setEnabled] = useState(config?.enabled ?? false);
+  const [botToken, setBotToken] = useState('');
+  const [chatId, setChatId] = useState(config?.chatId ?? '');
+
+  useEffect(() => {
+    setEnabled(config?.enabled ?? false);
+    setChatId(config?.chatId ?? '');
+  }, [config]);
+
+  return (
+    <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3 text-xs dark:border-slate-700">
+      <p className="mb-2 font-semibold">Telegram Bot</p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <input value={botToken} onChange={(e) => setBotToken(e.target.value)} placeholder={config?.hasToken ? 'token kayitli (degistirmek icin yaz)' : 'bot token'} className="rounded border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-900" />
+        <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="chat id" className="rounded border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-900" />
+        <button onClick={() => void onSave(memberId, enabled, botToken || undefined, chatId || undefined)} className="rounded bg-emerald-700 px-2 py-1 text-white">Kaydet</button>
+      </div>
+      <label className="mt-2 flex items-center gap-2">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        Bildirim aktif
+      </label>
+    </div>
   );
 }

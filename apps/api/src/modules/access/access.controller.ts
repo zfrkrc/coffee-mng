@@ -109,6 +109,22 @@ class SuperadminLoginDto {
   password!: string;
 }
 
+class TelegramConfigDto {
+  @IsBoolean()
+  enabled!: boolean;
+
+  @IsOptional()
+  @IsString()
+  botToken?: string;
+
+  @IsOptional()
+  @IsString()
+  chatId?: string;
+
+  @IsString()
+  requestedBy!: string;
+}
+
 @ApiTags('access')
 @Controller('access')
 export class AccessController {
@@ -177,6 +193,18 @@ export class AccessController {
     this.guardSuperadmin(body.requestedBy);
     await this.access.setStaffPassword(staffId, body.password);
     return { ok: true };
+  }
+
+  @Get('members/:memberId/telegram')
+  async getTelegramConfig(@Param('memberId') memberId: string, @Query('requestedBy') requestedBy: string) {
+    this.guardSuperadmin(requestedBy);
+    return this.access.getTelegramConfig(memberId);
+  }
+
+  @Post('members/:memberId/telegram')
+  async setTelegramConfig(@Param('memberId') memberId: string, @Body() body: TelegramConfigDto) {
+    this.guardSuperadmin(body.requestedBy);
+    return this.access.setTelegramConfig(memberId, body);
   }
 
   @Post('login-host')

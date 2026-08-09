@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CustomerService } from './customer.service';
+import { TelegramNotifyService } from './telegram-notify.service';
 import type { Request, Response } from 'express';
 import QRCode from 'qrcode';
 import { API_ENV } from '../../core/config/config.module';
@@ -73,6 +74,7 @@ class UpsertTableDto {
 export class CustomerController {
   constructor(
     private readonly customer: CustomerService,
+    private readonly telegram: TelegramNotifyService,
     @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
 
@@ -140,8 +142,14 @@ export class CustomerController {
   }
 
   @Post('orders')
-  createOrder(@Body() body: CreateOrderDto) {
-    return this.customer.createOrder(body);
+  async createOrder(@Body() body: CreateOrderDto, @Req() req: Request) {
+    const order = this.customer.createOrder(body);
+    const domain = this.getRequestDomain(req);
+    await this.telegram.notifyByDomain(
+      domain,
+      `<b>Yeni Siparis</b>\nMasa: ${order.tableName} (${order.tableCode})\nTutar: ${Math.round(order.totalCents / 100)} TL\nNo: ${order.id.slice(0, 8)}`,
+    );
+    return order;
   }
 
   @Get('kitchen/orders')
@@ -151,9 +159,15 @@ export class CustomerController {
   }
 
   @Post('kitchen/orders/:orderId/advance')
-  advanceOrder(@Param('orderId') orderId: string, @Req() req: Request) {
+  async advanceOrder(@Param('orderId') orderId: string, @Req() req: Request) {
     this.requireService(req, 'kitchen-board');
-    return this.customer.advanceOrder(orderId);
+    const order = this.customer.advanceOrder(orderId);
+    const domain = this.getRequestDomain(req);
+    await this.telegram.notifyByDomain(
+      domain,
+      `<b>Siparis Durumu</b>\nMasa: ${order.tableName} (${order.tableCode})\nDurum: ${order.status}\nNo: ${order.id.slice(0, 8)}`,
+    );
+    return order;
   }
 
   @Get('orders/:orderId')
@@ -183,6 +197,12 @@ export class CustomerController {
     };
     const allowed = rules[role] ?? [];
     return allowed.includes(service);
+  }
+
+  private getRequestDomain(req: Request): string {
+    const forwardedHost = req.headers['x-forwarded-host'];
+    const hostValue = Array.isArray(forwardedHost) ? forwardedHost[0] : (forwardedHost ?? req.headers.host ?? '');
+    return hostValue.split(',')[0]?.trim().split(':')[0]?.toLowerCase() || 'localhost';
   }
 
   @Get('qr/:tableCode')

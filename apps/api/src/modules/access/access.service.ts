@@ -256,6 +256,51 @@ export class AccessService {
     });
   }
 
+  async setTelegramConfig(
+    memberId: string,
+    input: { enabled: boolean; botToken?: string; chatId?: string },
+  ): Promise<MemberAccount> {
+    const member = await this.prisma.accessMember.findUnique({ where: { id: memberId } });
+    if (!member) throw AppError.notFound('Member not found');
+    const updated = await this.prisma.accessMember.update({
+      where: { id: memberId },
+      data: {
+        telegramEnabled: input.enabled,
+        telegramBotToken: input.botToken?.trim() || null,
+        telegramChatId: input.chatId?.trim() || null,
+      },
+    });
+    return this.toMemberAccount(updated);
+  }
+
+  async getTelegramConfig(memberId: string): Promise<{ enabled: boolean; hasToken: boolean; chatId: string | null }> {
+    const member = await this.prisma.accessMember.findUnique({ where: { id: memberId } });
+    if (!member) throw AppError.notFound('Member not found');
+    return {
+      enabled: member.telegramEnabled,
+      hasToken: Boolean(member.telegramBotToken),
+      chatId: member.telegramChatId,
+    };
+  }
+
+  async getMemberByDomainFull(domain: string): Promise<{
+    id: string;
+    displayName: string;
+    telegramEnabled: boolean;
+    telegramBotToken: string | null;
+    telegramChatId: string | null;
+  }> {
+    const member = await this.prisma.accessMember.findFirst({ where: { domain: domain.trim().toLowerCase() } });
+    if (!member) throw AppError.notFound('Member domain not found');
+    return {
+      id: member.id,
+      displayName: member.displayName,
+      telegramEnabled: member.telegramEnabled,
+      telegramBotToken: member.telegramBotToken,
+      telegramChatId: member.telegramChatId,
+    };
+  }
+
   private generateMemberToken(domain: string): string {
     const rand = Math.random().toString(36).slice(2, 10);
     return `cafeos_${domain.replace(/[^a-z0-9]/g, '')}_${rand}_${Date.now().toString(36)}`;

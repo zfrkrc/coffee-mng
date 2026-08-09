@@ -171,6 +171,9 @@ model AccessMember {
   active      Boolean  @default(true)
   token       String   @unique
   passwordHash String? @map("password_hash")
+  telegramEnabled Boolean @default(false) @map("telegram_enabled")
+  telegramBotToken String? @map("telegram_bot_token")
+  telegramChatId String? @map("telegram_chat_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
