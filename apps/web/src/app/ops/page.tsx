@@ -36,14 +36,25 @@ type TableItem = {
   qrImageUrl: string;
 };
 
+type DailyReport = {
+  date: string;
+  orderCount: number;
+  grossRevenueCents: number;
+  averageOrderCents: number;
+  topProducts: Array<{ productId: string; name: string; qty: number }>;
+  tableLoad: Array<{ tableCode: string; tableName: string; orders: number }>;
+};
+
 export default function OpsPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [tables, setTables] = useState<TableItem[]>([]);
+  const [report, setReport] = useState<DailyReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({ id: '', name: '', category: 'coffee', priceTl: '0', note: '' });
+  const [tableForm, setTableForm] = useState({ code: '', name: '', capacity: '2' });
 
   async function loadAll() {
     try {
@@ -61,11 +72,14 @@ export default function OpsPage() {
       const menuJson = (await menuRes.json()) as { items: MenuItem[] };
       const invJson = (await invRes.json()) as { items: InventoryItem[] };
       const tableJson = (await tableRes.json()) as { items: TableItem[] };
+      const reportRes = await fetch('/api/customer/admin/reports/daily', { cache: 'no-store' });
+      const reportJson = reportRes.ok ? ((await reportRes.json()) as DailyReport) : null;
 
       setOverview(ov);
       setMenu(menuJson.items);
       setInventory(invJson.items);
       setTables(tableJson.items);
+      setReport(reportJson);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ops failed');
@@ -105,6 +119,31 @@ export default function OpsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ delta }),
     });
+    await loadAll();
+  }
+
+  async function saveTable() {
+    if (!tableForm.code || !tableForm.name) return;
+    await fetch('/api/customer/admin/tables', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: tableForm.code,
+        name: tableForm.name,
+        capacity: Number(tableForm.capacity) || 2,
+      }),
+    });
+    setTableForm({ code: '', name: '', capacity: '2' });
+    await loadAll();
+  }
+
+  async function deleteTable(code: string) {
+    const res = await fetch(`/api/customer/admin/tables/${code}/delete`, { method: 'POST' });
+    if (!res.ok) {
+      const txt = await res.text();
+      setError(`Masa silinemedi: ${txt}`);
+      return;
+    }
     await loadAll();
   }
 
@@ -191,15 +230,86 @@ export default function OpsPage() {
 
         <section className="surface-card mt-6 rounded-2xl p-4">
           <h2 className="mb-3 text-lg font-semibold">Masa durumu ve QR</h2>
+          <div className="mb-4 grid gap-2 sm:grid-cols-3">
+            <input
+              value={tableForm.code}
+              onChange={(e) => setTableForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+              placeholder="kod (T9)"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            />
+            <input
+              value={tableForm.name}
+              onChange={(e) => setTableForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Masa 9"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            />
+            <div className="flex gap-2">
+              <input
+                value={tableForm.capacity}
+                onChange={(e) => setTableForm((f) => ({ ...f, capacity: e.target.value }))}
+                placeholder="kapasite"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              />
+              <button onClick={() => void saveTable()} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm text-white">
+                Ekle
+              </button>
+            </div>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {tables.map((t) => (
               <div key={t.id} className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
                 <p className="font-semibold">{t.name}</p>
                 <p className="text-xs text-slate-500">Kod: {t.code} · {t.capacity} kisi</p>
                 <a href={t.customerUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-emerald-700 dark:text-emerald-400">Musteri linki</a>
+                <button onClick={() => void deleteTable(t.code)} className="mt-2 rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-300">
+                  Sil
+                </button>
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="surface-card mt-6 rounded-2xl p-4">
+          <h2 className="mb-3 text-lg font-semibold">Gunluk rapor</h2>
+          {!report && <p className="text-sm text-slate-500">Rapor bekleniyor...</p>}
+          {report && (
+            <>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
+                  Siparis: <strong>{report.orderCount}</strong>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
+                  Ciro: <strong>{Math.round(report.grossRevenueCents / 100)} TL</strong>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
+                  Ortalama: <strong>{Math.round(report.averageOrderCents / 100)} TL</strong>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold">Top urunler</h3>
+                  <div className="space-y-1 text-sm">
+                    {report.topProducts.map((p) => (
+                      <div key={p.productId} className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700">
+                        {p.name} · {p.qty} adet
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold">Masa yuk dagilimi</h3>
+                  <div className="space-y-1 text-sm">
+                    {report.tableLoad.map((t) => (
+                      <div key={t.tableCode} className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700">
+                        {t.tableName} · {t.orders} siparis
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </section>
       </section>
     </main>

@@ -48,6 +48,18 @@ class AdjustInventoryDto {
   delta!: number;
 }
 
+class UpsertTableDto {
+  @IsString()
+  code!: string;
+
+  @IsString()
+  name!: string;
+
+  @IsInt()
+  @Min(1)
+  capacity!: number;
+}
+
 @ApiTags('customer')
 @Controller('customer')
 export class CustomerController {
@@ -90,6 +102,22 @@ export class CustomerController {
   @Get('admin/overview')
   overview() {
     return this.customer.getOverview();
+  }
+
+  @Get('admin/reports/daily')
+  dailyReport() {
+    return this.customer.getDailyReport();
+  }
+
+  @Post('admin/tables')
+  upsertTable(@Body() body: UpsertTableDto) {
+    return this.customer.upsertTable(body);
+  }
+
+  @Post('admin/tables/:tableCode/delete')
+  deleteTable(@Param('tableCode') tableCode: string) {
+    this.customer.deleteTable(tableCode);
+    return { ok: true };
   }
 
   @Post('orders')

@@ -5,6 +5,7 @@ import type {
   CafeTable,
   CustomerOrderLine,
   CustomerOrderView,
+  DailyReport,
   InventoryItem,
   MenuItem,
   OpsOverview,
@@ -22,6 +23,13 @@ export interface MenuItemUpsertInput {
   category: MenuItem['category'];
   priceCents: number;
   note: string;
+}
+
+export interface UpsertTableInput {
+  id?: string;
+  code: string;
+  name: string;
+  capacity: number;
 }
 
 type StoredOrder = CustomerOrderView & { statusIndex: number };
@@ -193,6 +201,41 @@ export class CustomerService {
     }));
   }
 
+  upsertTable(input: UpsertTableInput): CafeTable {
+    const code = input.code.trim().toUpperCase();
+    const name = input.name.trim();
+    const capacity = Math.max(1, Math.floor(input.capacity));
+    if (!code || !name) throw AppError.validation('Table code and name are required');
+
+    const existing = this.tables.find((t) => t.code === code || (input.id && t.id === input.id));
+    if (existing) {
+      existing.code = code;
+      existing.name = name;
+      existing.capacity = capacity;
+      return existing;
+    }
+
+    const table: CafeTable = {
+      id: input.id?.trim() || `t-${code.toLowerCase()}`,
+      code,
+      name,
+      capacity,
+    };
+    this.tables.push(table);
+    return table;
+  }
+
+  deleteTable(tableCode: string): void {
+    const code = tableCode.trim().toUpperCase();
+    const idx = this.tables.findIndex((t) => t.code === code);
+    if (idx === -1) throw AppError.notFound('Table not found');
+    const hasOrders = Array.from(this.orders.values()).some((o) => o.tableCode === code);
+    if (hasOrders) {
+      throw AppError.conflict('Table has existing orders and cannot be removed');
+    }
+    this.tables.splice(idx, 1);
+  }
+
   tableByCode(tableCode: string): CafeTable {
     const found = this.tables.find((t) => t.code === tableCode);
     if (!found) throw AppError.validation('Unknown table code', { tableCode });
@@ -300,6 +343,44 @@ export class CustomerService {
       openOrders: all.filter((o) => o.status !== 'ready').length,
       lowStockCount,
       totalRevenueCents,
+    };
+  }
+
+  getDailyReport(): DailyReport {
+    const today = new Date().toISOString().slice(0, 10);
+    const orders = Array.from(this.orders.values());
+    const grossRevenueCents = orders.reduce((acc, o) => acc + o.totalCents, 0);
+    const byProduct = new Map<string, { name: string; qty: number }>();
+    const byTable = new Map<string, { tableName: string; orders: number }>();
+
+    for (const order of orders) {
+      const tableRow = byTable.get(order.tableCode) ?? { tableName: order.tableName, orders: 0 };
+      tableRow.orders += 1;
+      byTable.set(order.tableCode, tableRow);
+
+      for (const item of order.items) {
+        const prod = byProduct.get(item.productId) ?? { name: item.name, qty: 0 };
+        prod.qty += item.quantity;
+        byProduct.set(item.productId, prod);
+      }
+    }
+
+    const topProducts = Array.from(byProduct.entries())
+      .map(([productId, v]) => ({ productId, name: v.name, qty: v.qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+
+    const tableLoad = Array.from(byTable.entries())
+      .map(([tableCode, v]) => ({ tableCode, tableName: v.tableName, orders: v.orders }))
+      .sort((a, b) => b.orders - a.orders);
+
+    return {
+      date: today,
+      orderCount: orders.length,
+      grossRevenueCents,
+      averageOrderCents: orders.length ? Math.round(grossRevenueCents / orders.length) : 0,
+      topProducts,
+      tableLoad,
     };
   }
 

@@ -56,3 +56,12 @@ export interface OpsOverview {
   lowStockCount: number;
   totalRevenueCents: number;
 }
+
+export interface DailyReport {
+  date: string;
+  orderCount: number;
+  grossRevenueCents: number;
+  averageOrderCents: number;
+  topProducts: Array<{ productId: string; name: string; qty: number }>;
+  tableLoad: Array<{ tableCode: string; tableName: string; orders: number }>;
+}
