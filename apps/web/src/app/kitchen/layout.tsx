@@ -18,6 +18,10 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
         window.location.href = '/';
         return;
       }
+      if (!['owner', 'admin', 'kitchen', 'waiter'].includes(me.role)) {
+        window.location.href = '/';
+        return;
+      }
       setUser(me);
       setReady(true);
     }

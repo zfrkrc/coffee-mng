@@ -18,6 +18,10 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
         window.location.href = '/';
         return;
       }
+      if (!['owner', 'admin', 'cashier'].includes(me.role)) {
+        window.location.href = '/';
+        return;
+      }
       setUser(me);
       setReady(true);
     }

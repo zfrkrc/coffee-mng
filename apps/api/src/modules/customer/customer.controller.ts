@@ -167,6 +167,22 @@ export class CustomerController {
     const token = auth.slice('Bearer '.length);
     const payload = verifyAuthToken(token, this.env.JWT_SECRET, this.env.JWT_ISSUER);
     if (!payload.services.includes(service)) throw AppError.forbidden(`Missing service access: ${service}`);
+    if (!this.roleAllowsService(payload.role, service)) {
+      throw AppError.forbidden(`Role ${payload.role} cannot access ${service}`);
+    }
+  }
+
+  private roleAllowsService(role: string, service: string): boolean {
+    const rules: Record<string, string[]> = {
+      owner: ['customer-order', 'kitchen-board', 'qr-management', 'ops-dashboard', 'ai-station'],
+      admin: ['customer-order', 'kitchen-board', 'qr-management', 'ops-dashboard', 'ai-station'],
+      cashier: ['customer-order', 'ops-dashboard'],
+      waiter: ['customer-order', 'kitchen-board'],
+      kitchen: ['kitchen-board'],
+      viewer: ['customer-order'],
+    };
+    const allowed = rules[role] ?? [];
+    return allowed.includes(service);
   }
 
   @Get('qr/:tableCode')
