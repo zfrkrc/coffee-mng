@@ -23,6 +23,7 @@ export interface MenuItemUpsertInput {
   category: MenuItem['category'];
   priceCents: number;
   note: string;
+  imageUrl?: string;
 }
 
 export interface UpsertTableInput {
@@ -56,6 +57,7 @@ export class CustomerService {
       category: 'coffee',
       priceCents: 14500,
       note: 'Double shot, silky milk',
+      imageUrl: 'https://images.unsplash.com/photo-1494314671902-399b18174975?auto=format&fit=crop&w=900&q=80',
     },
     {
       id: 'americano',
@@ -63,6 +65,7 @@ export class CustomerService {
       category: 'coffee',
       priceCents: 11000,
       note: 'Clean and bold',
+      imageUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=900&q=80',
     },
     {
       id: 'earlgrey',
@@ -70,6 +73,7 @@ export class CustomerService {
       category: 'tea',
       priceCents: 9500,
       note: 'Bergamot black tea',
+      imageUrl: 'https://images.unsplash.com/photo-1597481499750-3e6b22637e12?auto=format&fit=crop&w=900&q=80',
     },
     {
       id: 'toast',
@@ -77,6 +81,7 @@ export class CustomerService {
       category: 'food',
       priceCents: 18000,
       note: 'Sourdough + lemon',
+      imageUrl: 'https://images.unsplash.com/photo-1603046891744-9bcaf8f7f6d9?auto=format&fit=crop&w=900&q=80',
     },
     {
       id: 'croissant',
@@ -84,6 +89,7 @@ export class CustomerService {
       category: 'food',
       priceCents: 8500,
       note: 'Fresh baked daily',
+      imageUrl: 'https://images.unsplash.com/photo-1555507036-ab794f4afe5b?auto=format&fit=crop&w=900&q=80',
     },
     {
       id: 'tiramisu',
@@ -91,6 +97,7 @@ export class CustomerService {
       category: 'dessert',
       priceCents: 16500,
       note: 'House special',
+      imageUrl: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=900&q=80',
     },
   ];
 
@@ -168,6 +175,7 @@ export class CustomerService {
       category: input.category,
       priceCents: input.priceCents,
       note: input.note.trim(),
+      imageUrl: input.imageUrl?.trim() || undefined,
     };
 
     if (existingIdx >= 0) {

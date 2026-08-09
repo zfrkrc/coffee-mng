@@ -45,6 +45,7 @@ export const apiEnvSchema = baseEnvSchema.extend({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().default(900),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().default(7 * 24 * 3600),
   JWT_ISSUER: z.string().default('cafeos-edge'),
+  JWT_SECRET: z.string().min(16).default('cafeos-dev-secret-please-change'),
   /** Space-separated CORS origins for the web app. */
   WEB_ORIGINS: z.string().default('http://localhost:3001,http://cafe.local'),
   CLOUD_API_URL: z.string().default(''),

@@ -14,6 +14,7 @@ export interface MenuItem {
   category: MenuCategory;
   priceCents: number;
   note: string;
+  imageUrl?: string;
 }
 
 export interface CustomerOrderLine {

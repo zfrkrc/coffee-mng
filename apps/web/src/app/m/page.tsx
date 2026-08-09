@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { fetchMe } from '../../lib/auth';
 
 type MenuItem = {
   id: string;
@@ -8,6 +9,7 @@ type MenuItem = {
   category: 'coffee' | 'tea' | 'food' | 'dessert';
   price: number;
   note: string;
+  imageUrl?: string;
 };
 
 type CartLine = { item: MenuItem; qty: number };
@@ -20,6 +22,7 @@ type ApiMenuResponse = {
     category: MenuItem['category'];
     priceCents: number;
     note: string;
+    imageUrl?: string;
   }>;
 };
 
@@ -58,6 +61,14 @@ export default function CustomerPage() {
   const [orderState, setOrderState] = useState<OrderState>('idle');
   const [tableCode, setTableCode] = useState('T6');
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [showLoginHint, setShowLoginHint] = useState(false);
+
+  useEffect(() => {
+    void fetchMe().then((me) => {
+      if (!me) return;
+      if (!me.services.includes('customer-order')) setShowLoginHint(true);
+    });
+  }, []);
 
   useEffect(() => {
     const fromQuery = new URLSearchParams(window.location.search).get('table')?.toUpperCase();
@@ -83,6 +94,7 @@ export default function CustomerPage() {
           category: item.category,
           price: Math.round(item.priceCents / 100),
           note: item.note,
+          imageUrl: item.imageUrl,
         }));
         setMenu(mapped);
         setTables(tableJson.items);
@@ -168,7 +180,7 @@ export default function CustomerPage() {
   return (
     <main className="min-h-screen text-slate-900 dark:text-slate-100">
       <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-emerald-700 to-green-800 p-6 text-white shadow-lg shadow-black/15">
+        <div className="mb-6 rounded-3xl bg-gradient-to-r from-teal-700 via-emerald-700 to-green-800 p-5 text-white shadow-xl shadow-emerald-900/25 sm:p-6">
           <p className="text-xs uppercase tracking-[0.14em] text-emerald-100">Musteri Ekrani</p>
             <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Siparis Ver</h1>
             <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
@@ -195,6 +207,12 @@ export default function CustomerPage() {
           </div>
         )}
 
+        {showLoginHint && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Bu hesapta musteri siparis yetkisi kapali. Hero panelden servis yetkisi acilabilir.
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
@@ -218,7 +236,11 @@ export default function CustomerPage() {
                 <p className="col-span-full text-sm text-slate-500 dark:text-slate-400">Menu yukleniyor...</p>
               )}
               {filtered.map((item) => (
-                <article key={item.id} className="surface-card rounded-xl p-4">
+                <article key={item.id} className="surface-card overflow-hidden rounded-2xl p-0">
+                  {item.imageUrl && (
+                    <img src={item.imageUrl} alt={item.name} className="h-28 w-full object-cover sm:h-32" loading="lazy" />
+                  )}
+                  <div className="p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     {CATEGORY_LABEL[item.category]}
                   </p>
@@ -228,17 +250,18 @@ export default function CustomerPage() {
                     <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{item.price} TL</span>
                     <button
                       onClick={() => addToCart(item)}
-                      className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-emerald-700 dark:hover:bg-emerald-800"
+                      className="min-h-10 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-emerald-700 dark:hover:bg-emerald-800"
                     >
                       Ekle
                     </button>
+                  </div>
                   </div>
                 </article>
               ))}
             </div>
           </div>
 
-          <aside className="surface-card h-fit rounded-2xl p-4 sm:p-5">
+          <aside className="surface-card h-fit rounded-3xl p-4 sm:p-5 lg:sticky lg:top-16">
             <h3 className="text-lg font-semibold">Sepet</h3>
             <div className="mt-4 space-y-3">
               {cart.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">Sepet bos.</p>}

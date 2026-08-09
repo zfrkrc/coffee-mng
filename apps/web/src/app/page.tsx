@@ -12,6 +12,25 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [cloud, setCloud] = useState<CloudState>('unknown');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  useEffect(() => {
+    const host = window.location.hostname.toLowerCase();
+    if (host === 'cafeos.zk.net.tr' || host === 'localhost' || host === '127.0.0.1') return;
+    async function redirectToMemberSlug() {
+      try {
+        setIsRedirecting(true);
+        const res = await fetch('/api/access/resolve-host-root', { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = (await res.json()) as { slug?: string; active?: boolean };
+        if (!json.active || !json.slug) return;
+        window.location.replace(`/${json.slug}`);
+      } finally {
+        setIsRedirecting(false);
+      }
+    }
+    void redirectToMemberSlug();
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('cafeos-theme');
@@ -65,6 +84,17 @@ export default function HomePage() {
       : overall === 'degraded'
         ? 'from-amber-500 to-orange-600'
         : 'from-rose-600 to-red-700';
+
+  if (isRedirecting) {
+    return (
+      <main className="min-h-screen px-4 py-8 sm:px-6">
+        <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+          <h1 className="text-lg font-semibold">Yonlendiriliyor</h1>
+          <p className="mt-2 text-sm text-slate-500">Uye giris sayfasi aciliyor...</p>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen text-gray-900 dark:text-gray-100">
@@ -175,6 +205,30 @@ export default function HomePage() {
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Isletme paneli
+            </a>
+            <a
+              href="/ai-station"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              AI Station
+            </a>
+            <a
+              href="/domain-redirect"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Tenant Giris
+            </a>
+            <a
+              href="/hero"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Hero Panel
+            </a>
+            <a
+              href="/login"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Login
             </a>
             <button
               onClick={() => void loadHealth()}

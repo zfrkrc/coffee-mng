@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { authFetch } from '../../lib/auth';
 
 type OrderStatus = 'received' | 'preparing' | 'ready';
 
@@ -21,7 +22,7 @@ export default function KitchenPage() {
 
   async function loadOrders() {
     try {
-      const res = await fetch('/api/customer/kitchen/orders', { cache: 'no-store' });
+      const res = await authFetch('/api/customer/kitchen/orders', { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { items: KitchenOrder[] };
       setOrders(json.items);
@@ -34,7 +35,7 @@ export default function KitchenPage() {
   }
 
   async function advanceOrder(orderId: string) {
-    await fetch(`/api/customer/kitchen/orders/${orderId}/advance`, { method: 'POST' });
+    await authFetch(`/api/customer/kitchen/orders/${orderId}/advance`, { method: 'POST' });
     await loadOrders();
   }
 

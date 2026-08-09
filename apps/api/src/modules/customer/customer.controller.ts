@@ -1,10 +1,14 @@
-import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsArray, IsInt, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CustomerService } from './customer.service';
 import type { Request, Response } from 'express';
 import QRCode from 'qrcode';
+import { API_ENV } from '../../core/config/config.module';
+import type { ApiEnv } from '@cafeos/config';
+import { verifyAuthToken } from '../../core/auth/token';
+import { AppError } from '@cafeos/shared';
 
 class CreateOrderItemDto {
   @IsString()
@@ -41,6 +45,10 @@ class UpsertMenuItemDto {
 
   @IsString()
   note!: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }
 
 class AdjustInventoryDto {
@@ -63,7 +71,10 @@ class UpsertTableDto {
 @ApiTags('customer')
 @Controller('customer')
 export class CustomerController {
-  constructor(private readonly customer: CustomerService) {}
+  constructor(
+    private readonly customer: CustomerService,
+    @Inject(API_ENV) private readonly env: ApiEnv,
+  ) {}
 
   @Get('tables')
   tables(@Req() req: Request) {
@@ -79,43 +90,51 @@ export class CustomerController {
   }
 
   @Post('admin/menu')
-  upsertMenu(@Body() body: UpsertMenuItemDto) {
+  upsertMenu(@Body() body: UpsertMenuItemDto, @Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     return this.customer.upsertMenuItem(body);
   }
 
   @Post('admin/menu/:itemId/delete')
-  deleteMenu(@Param('itemId') itemId: string) {
+  deleteMenu(@Param('itemId') itemId: string, @Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     this.customer.deleteMenuItem(itemId);
     return { ok: true };
   }
 
   @Get('admin/inventory')
-  inventory() {
+  inventory(@Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     return { items: this.customer.getInventory() };
   }
 
   @Post('admin/inventory/:productId/adjust')
-  adjustInventory(@Param('productId') productId: string, @Body() body: AdjustInventoryDto) {
+  adjustInventory(@Param('productId') productId: string, @Body() body: AdjustInventoryDto, @Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     return this.customer.adjustInventory(productId, body.delta);
   }
 
   @Get('admin/overview')
-  overview() {
+  overview(@Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     return this.customer.getOverview();
   }
 
   @Get('admin/reports/daily')
-  dailyReport() {
+  dailyReport(@Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     return this.customer.getDailyReport();
   }
 
   @Post('admin/tables')
-  upsertTable(@Body() body: UpsertTableDto) {
+  upsertTable(@Body() body: UpsertTableDto, @Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     return this.customer.upsertTable(body);
   }
 
   @Post('admin/tables/:tableCode/delete')
-  deleteTable(@Param('tableCode') tableCode: string) {
+  deleteTable(@Param('tableCode') tableCode: string, @Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
     this.customer.deleteTable(tableCode);
     return { ok: true };
   }
@@ -126,18 +145,28 @@ export class CustomerController {
   }
 
   @Get('kitchen/orders')
-  kitchenOrders() {
+  kitchenOrders(@Req() req: Request) {
+    this.requireService(req, 'kitchen-board');
     return { items: this.customer.getKitchenOrders() };
   }
 
   @Post('kitchen/orders/:orderId/advance')
-  advanceOrder(@Param('orderId') orderId: string) {
+  advanceOrder(@Param('orderId') orderId: string, @Req() req: Request) {
+    this.requireService(req, 'kitchen-board');
     return this.customer.advanceOrder(orderId);
   }
 
   @Get('orders/:orderId')
   getOrder(@Param('orderId') orderId: string) {
     return this.customer.getOrder(orderId);
+  }
+
+  private requireService(req: Request, service: string): void {
+    const auth = req.headers.authorization ?? '';
+    if (!auth.startsWith('Bearer ')) throw AppError.forbidden('Missing bearer token');
+    const token = auth.slice('Bearer '.length);
+    const payload = verifyAuthToken(token, this.env.JWT_SECRET, this.env.JWT_ISSUER);
+    if (!payload.services.includes(service)) throw AppError.forbidden(`Missing service access: ${service}`);
   }
 
   @Get('qr/:tableCode')

@@ -3,9 +3,10 @@
 @tailwind utilities;
 
 :root {
-  --brand: #166534;
-  --brand-soft: #22c55e;
+  --brand: #0f766e;
+  --brand-soft: #14b8a6;
   --ink: #0f172a;
+  --accent: #f97316;
 }
 
 html,
@@ -17,8 +18,8 @@ body {
 body {
   color: var(--ink);
   background:
-    radial-gradient(1200px 500px at 10% -10%, rgba(34, 197, 94, 0.2), transparent 50%),
-    radial-gradient(900px 400px at 90% 0%, rgba(16, 185, 129, 0.12), transparent 45%),
+    radial-gradient(1200px 500px at 10% -10%, rgba(20, 184, 166, 0.22), transparent 50%),
+    radial-gradient(900px 400px at 90% 0%, rgba(249, 115, 22, 0.1), transparent 45%),
     linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 }
 

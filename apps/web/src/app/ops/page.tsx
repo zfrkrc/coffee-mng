@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { authFetch } from '../../lib/auth';
 
 type Overview = {
   menuCount: number;
@@ -16,6 +17,7 @@ type MenuItem = {
   category: 'coffee' | 'tea' | 'food' | 'dessert';
   priceCents: number;
   note: string;
+  imageUrl?: string;
 };
 
 type InventoryItem = {
@@ -53,15 +55,15 @@ export default function OpsPage() {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ id: '', name: '', category: 'coffee', priceTl: '0', note: '' });
+  const [form, setForm] = useState({ id: '', name: '', category: 'coffee', priceTl: '0', note: '', imageUrl: '' });
   const [tableForm, setTableForm] = useState({ code: '', name: '', capacity: '2' });
 
   async function loadAll() {
     try {
       const [ovRes, menuRes, invRes, tableRes] = await Promise.all([
-        fetch('/api/customer/admin/overview', { cache: 'no-store' }),
+        authFetch('/api/customer/admin/overview', { cache: 'no-store' }),
         fetch('/api/customer/menu', { cache: 'no-store' }),
-        fetch('/api/customer/admin/inventory', { cache: 'no-store' }),
+        authFetch('/api/customer/admin/inventory', { cache: 'no-store' }),
         fetch('/api/customer/tables', { cache: 'no-store' }),
       ]);
       if (!ovRes.ok || !menuRes.ok || !invRes.ok || !tableRes.ok) {
@@ -72,7 +74,7 @@ export default function OpsPage() {
       const menuJson = (await menuRes.json()) as { items: MenuItem[] };
       const invJson = (await invRes.json()) as { items: InventoryItem[] };
       const tableJson = (await tableRes.json()) as { items: TableItem[] };
-      const reportRes = await fetch('/api/customer/admin/reports/daily', { cache: 'no-store' });
+      const reportRes = await authFetch('/api/customer/admin/reports/daily', { cache: 'no-store' });
       const reportJson = reportRes.ok ? ((await reportRes.json()) as DailyReport) : null;
 
       setOverview(ov);
@@ -93,28 +95,29 @@ export default function OpsPage() {
   async function saveMenuItem() {
     const price = Math.round(Number(form.priceTl) * 100);
     if (!form.id || !form.name || !price) return;
-    await fetch('/api/customer/admin/menu', {
+    await authFetch('/api/customer/admin/menu', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: form.id.trim(),
-        name: form.name.trim(),
-        category: form.category,
-        priceCents: price,
-        note: form.note.trim(),
-      }),
-    });
-    setForm({ id: '', name: '', category: 'coffee', priceTl: '0', note: '' });
+        body: JSON.stringify({
+          id: form.id.trim(),
+          name: form.name.trim(),
+          category: form.category,
+          priceCents: price,
+          note: form.note.trim(),
+          imageUrl: form.imageUrl.trim() || undefined,
+        }),
+      });
+    setForm({ id: '', name: '', category: 'coffee', priceTl: '0', note: '', imageUrl: '' });
     await loadAll();
   }
 
   async function deleteMenuItem(itemId: string) {
-    await fetch(`/api/customer/admin/menu/${itemId}/delete`, { method: 'POST' });
+    await authFetch(`/api/customer/admin/menu/${itemId}/delete`, { method: 'POST' });
     await loadAll();
   }
 
   async function adjustStock(productId: string, delta: number) {
-    await fetch(`/api/customer/admin/inventory/${productId}/adjust`, {
+    await authFetch(`/api/customer/admin/inventory/${productId}/adjust`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ delta }),
@@ -124,7 +127,7 @@ export default function OpsPage() {
 
   async function saveTable() {
     if (!tableForm.code || !tableForm.name) return;
-    await fetch('/api/customer/admin/tables', {
+    await authFetch('/api/customer/admin/tables', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -138,7 +141,7 @@ export default function OpsPage() {
   }
 
   async function deleteTable(code: string) {
-    const res = await fetch(`/api/customer/admin/tables/${code}/delete`, { method: 'POST' });
+    const res = await authFetch(`/api/customer/admin/tables/${code}/delete`, { method: 'POST' });
     if (!res.ok) {
       const txt = await res.text();
       setError(`Masa silinemedi: ${txt}`);
@@ -152,15 +155,17 @@ export default function OpsPage() {
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
       <section className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-6 rounded-3xl bg-gradient-to-r from-cyan-700 via-teal-700 to-emerald-700 p-5 text-white shadow-xl shadow-cyan-900/25 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Isletme Paneli</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Menu, depo, masa ve operasyon yonetimi</p>
+            <p className="text-sm text-emerald-100">Menu, depo, masa ve operasyon yonetimi</p>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/kitchen" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">Mutfak</a>
-            <a href="/qr" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">Masa QR</a>
-            <button onClick={() => void loadAll()} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Yenile</button>
+            <a href="/kitchen" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Mutfak</a>
+            <a href="/qr" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Masa QR</a>
+            <button onClick={() => void loadAll()} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-emerald-800">Yenile</button>
+          </div>
           </div>
         </div>
 
@@ -188,13 +193,21 @@ export default function OpsPage() {
               </select>
               <input value={form.priceTl} onChange={(e) => setForm((f) => ({ ...f, priceTl: e.target.value }))} placeholder="fiyat (TL)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
               <input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="aciklama" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 sm:col-span-2" />
+              <input value={form.imageUrl} onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))} placeholder="gorsel url (opsiyonel)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 sm:col-span-2" />
             </div>
             <button onClick={() => void saveMenuItem()} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white">Kaydet</button>
 
             <div className="mt-4 space-y-2">
               {menu.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
-                  <span>{item.name} ({Math.round(item.priceCents / 100)} TL)</span>
+                <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <img
+                      src={item.imageUrl || 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=400&q=80'}
+                      alt={item.name}
+                      className="h-11 w-11 rounded-md object-cover"
+                    />
+                    <span className="truncate">{item.name} ({Math.round(item.priceCents / 100)} TL)</span>
+                  </div>
                   <button onClick={() => void deleteMenuItem(item.id)} className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-300">Sil</button>
                 </div>
               ))}
