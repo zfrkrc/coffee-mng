@@ -5,7 +5,7 @@
  * assets so the tablet UI can survive refresh/network interruptions and be
  * installed as an app.
  */
-const CACHE = 'cafeos-edge-v1';
+const CACHE = 'cafeos-edge-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -31,7 +31,23 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;
   if (request.method !== 'GET') return;
 
-  // App shell / static assets: cache-first with network fallback.
+  // Navigation requests should prefer network to avoid stale app bundles.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((resp) => {
+          if (resp.ok) {
+            const copy = resp.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/'))),
+    );
+    return;
+  }
+
+  // Static assets: cache-first with network fallback.
   event.respondWith(
     caches.match(request).then(
       (cached) =>

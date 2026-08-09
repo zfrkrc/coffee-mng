@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { authFetch } from '../../lib/auth';
+import { authFetch, clearAuthToken } from '../../lib/auth';
 
 type OrderStatus = 'received' | 'preparing' | 'ready';
 
@@ -30,6 +30,7 @@ export default function KitchenPage() {
   const [editTableCode, setEditTableCode] = useState('');
   const [editRows, setEditRows] = useState<Array<{ productId: string; quantity: number }>>([]);
   const [branchSlug, setBranchSlug] = useState<string | null>(null);
+  const [authBlocked, setAuthBlocked] = useState(false);
   const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
 
   useEffect(() => {
@@ -41,7 +42,26 @@ export default function KitchenPage() {
       const branch = new URLSearchParams(window.location.search).get('branch');
       const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
       const res = await authFetch(`/api/customer/kitchen/orders${qs}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (res.status === 401 || res.status === 403) {
+        setAuthBlocked(true);
+        setError('Mutfak yetkisi bulunamadi. Giris ekranina yonlendiriliyorsun...');
+        clearAuthToken();
+        setTimeout(() => {
+          window.location.href = `/login${qs}`;
+        }, 700);
+        return;
+      }
+      if (!res.ok) {
+        let message = `HTTP ${res.status}`;
+        try {
+          const payload = (await res.json()) as { message?: string; error?: string };
+          message = payload.message || payload.error || message;
+        } catch {
+          const text = await res.text();
+          if (text) message = text;
+        }
+        throw new Error(message);
+      }
       const json = (await res.json()) as { items: KitchenOrder[] };
       setOrders(json.items);
       setError(null);
@@ -107,11 +127,12 @@ export default function KitchenPage() {
   }
 
   useEffect(() => {
+    if (authBlocked) return;
     void loadOrders();
     void loadMenu();
     const t = setInterval(() => void loadOrders(), 3000);
     return () => clearInterval(t);
-  }, []);
+  }, [authBlocked]);
 
   const grouped = useMemo(
     () => ({

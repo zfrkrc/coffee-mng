@@ -193,6 +193,7 @@ export default function OpsPage() {
         <div className="mb-5 flex flex-wrap gap-2">
           <a href="#menu" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Menu</a>
           <a href="#inventory" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Depo</a>
+          <a href={`/ops/stock-lab${branchQuery}`} className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Recete Lab</a>
           <a href="#tables" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Masalar</a>
           <a href="#reports" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Rapor</a>
         </div>
@@ -247,7 +248,12 @@ export default function OpsPage() {
           </section>
 
           <section id="inventory" className="surface-card rounded-2xl p-4">
-            <h2 className="mb-3 text-lg font-semibold">Depo takip</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Depo takip</h2>
+              <a href={`/ops/stock-lab${branchQuery}`} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium dark:border-slate-700">
+                Hammadde + recete ekrani
+              </a>
+            </div>
             {lowStock.length > 0 && (
               <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
                 Kritik stok: {lowStock.map((x) => x.productName).join(', ')}

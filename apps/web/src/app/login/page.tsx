@@ -26,14 +26,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [branchSlug, setBranchSlug] = useState('');
   const [branches, setBranches] = useState<BranchItem[]>([]);
-  const isSuperadminMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('superadmin') === '1';
+  const [isSuperadminMode, setIsSuperadminMode] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search).get('branch');
+    const params = new URLSearchParams(window.location.search);
+    setIsSuperadminMode(params.get('superadmin') === '1');
+    const p = params.get('branch');
     if (p) setBranchSlug(p);
+    setReady(true);
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     if (isSuperadminMode) return;
     async function loadBranches() {
       try {
@@ -55,18 +60,34 @@ export default function LoginPage() {
       }
     }
     void loadBranches();
-  }, [branchSlug, isSuperadminMode]);
+  }, [branchSlug, isSuperadminMode, ready]);
 
   async function submit() {
+    if (!isSuperadminMode && branches.length > 0 && !branchSlug.trim()) {
+      setError('Lutfen sube sec');
+      return;
+    }
+
     setLoading(true);
     try {
+      setError(null);
       const body = isSuperadminMode ? { email, password } : { email, password, branchSlug: branchSlug.trim() || undefined };
       const res = await fetch(isSuperadminMode ? '/api/access/superadmin/login' : '/api/access/login-host', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`Login HTTP ${res.status}`);
+      if (!res.ok) {
+        let message = `Login HTTP ${res.status}`;
+        try {
+          const payload = (await res.json()) as { message?: string; error?: string };
+          message = payload.message || payload.error || message;
+        } catch {
+          const text = await res.text();
+          if (text) message = text;
+        }
+        throw new Error(message);
+      }
       const json = (await res.json()) as { token: string; user?: { role?: string } };
       saveAuthToken(json.token);
       if (isSuperadminMode || json.user?.role === 'superadmin') {
