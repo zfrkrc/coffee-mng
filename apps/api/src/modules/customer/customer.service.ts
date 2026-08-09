@@ -17,6 +17,11 @@ export interface CreateCustomerOrderInput {
   items: Array<{ productId: string; quantity: number }>;
 }
 
+export interface UpdateCustomerOrderInput {
+  tableCode: string;
+  items: Array<{ productId: string; quantity: number }>;
+}
+
 export interface MenuItemUpsertInput {
   id: string;
   name: string;
@@ -416,6 +421,57 @@ export class CustomerService {
     found.status = STATUS_FLOW[next];
     found.updatedAt = new Date().toISOString();
     state.orders.set(found.id, found);
+    return this.publicOrder(found);
+  }
+
+  updateOrder(domain: string, orderId: string, input: UpdateCustomerOrderInput): CustomerOrderView {
+    const state = this.stateFor(domain);
+    const found = state.orders.get(orderId);
+    if (!found) throw AppError.notFound('Order not found');
+    if (found.status === 'ready') {
+      throw AppError.conflict('Ready orders cannot be edited');
+    }
+
+    const tableCode = input.tableCode.trim().toUpperCase();
+    const table = this.tableByCode(domain, tableCode);
+    if (!input.items.length) {
+      throw AppError.validation('At least one item is required', { items: 'empty' });
+    }
+
+    const lines: CustomerOrderLine[] = input.items.map((item) => {
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        throw AppError.validation('Quantity must be a positive integer', {
+          quantity: `invalid for product ${item.productId}`,
+        });
+      }
+      const product = state.menu.find((m) => m.id === item.productId);
+      if (!product) {
+        throw AppError.validation('Unknown product', { productId: item.productId });
+      }
+      return {
+        productId: product.id,
+        name: product.name,
+        quantity: item.quantity,
+        unitPriceCents: product.priceCents,
+        lineTotalCents: product.priceCents * item.quantity,
+      };
+    });
+
+    const totals = computeOrderTotals(
+      lines.map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        unitPriceCents: line.unitPriceCents,
+      })),
+    );
+
+    found.tableCode = table.code;
+    found.tableName = table.name;
+    found.items = lines;
+    found.totalCents = totals.totalCents;
+    found.updatedAt = new Date().toISOString();
+    state.orders.set(found.id, found);
+
     return this.publicOrder(found);
   }
 

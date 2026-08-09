@@ -34,6 +34,20 @@ class CreateOrderDto {
   branchSlug?: string;
 }
 
+class UpdateOrderDto {
+  @IsString()
+  tableCode!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderItemDto)
+  items!: CreateOrderItemDto[];
+
+  @IsOptional()
+  @IsString()
+  branchSlug?: string;
+}
+
 class UpsertMenuItemDto {
   @IsString()
   id!: string;
@@ -174,6 +188,14 @@ export class CustomerController {
       domain,
       `<b>Siparis Durumu</b>\nMasa: ${order.tableName} (${order.tableCode})\nDurum: ${order.status}\nNo: ${order.id.slice(0, 8)}`,
     );
+    return order;
+  }
+
+  @Post('kitchen/orders/:orderId/edit')
+  async editOrder(@Param('orderId') orderId: string, @Body() body: UpdateOrderDto, @Req() req: Request) {
+    this.requireService(req, 'kitchen-board');
+    const domain = this.getRequestDomain(req);
+    const order = this.customer.updateOrder(domain, orderId, body);
     return order;
   }
 
