@@ -160,4 +160,107 @@ describe('CustomerService flow (e2e)', () => {
       expect(report.grossRevenueCents).toBeGreaterThanOrEqual(2 * 14500 + 11000);
     });
   });
+
+  describe('table accounts', () => {
+    it('opens an account for a table', () => {
+      const account = svc.openAccount('cafeos.waycoffee.com.tr', 'T5');
+      expect(account.status).toBe('open');
+      expect(account.tableCode).toBe('T5');
+      expect(account.totalCents).toBe(0);
+      expect(account.orderIds).toEqual([]);
+    });
+
+    it('returns the same account when reopening a table', () => {
+      svc.openAccount('cafeos.waycoffee.com.tr', 'T5');
+      const again = svc.openAccount('cafeos.waycoffee.com.tr', 'T5');
+      expect(again.status).toBe('open');
+      const accounts = svc.getTableAccounts('cafeos.waycoffee.com.tr').filter((a) => a.tableCode === 'T5');
+      expect(accounts).toHaveLength(1);
+    });
+
+    it('attaches orders placed on the table to the open account', () => {
+      const first = svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T5',
+        items: [{ productId: 'latte', quantity: 2 }],
+      });
+      const second = svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T5',
+        items: [{ productId: 'toast', quantity: 1 }],
+      });
+      const account = svc.getAccountByTable('cafeos.waycoffee.com.tr', 'T5');
+      expect(account).not.toBeNull();
+      expect(account!.orderIds.sort()).toEqual([first.id, second.id].sort());
+      expect(account!.totalCents).toBe(2 * 14500 + 18000);
+      expect(account!.itemCount).toBe(3);
+    });
+
+    it('marks an account as requested', () => {
+      svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T6',
+        items: [{ productId: 'americano', quantity: 1 }],
+      });
+      const requested = svc.requestAccount('cafeos.waycoffee.com.tr', 'T6');
+      expect(requested.status).toBe('requested');
+      expect(requested.requestedAt).toBeDefined();
+    });
+
+    it('closes an account with a payment method', () => {
+      svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T6',
+        items: [{ productId: 'latte', quantity: 1 }],
+      });
+      svc.requestAccount('cafeos.waycoffee.com.tr', 'T6');
+      const closed = svc.closeAccount('cafeos.waycoffee.com.tr', 'T6', 'card');
+      expect(closed.status).toBe('paid');
+      expect(closed.paymentMethod).toBe('card');
+      expect(closed.closedAt).toBeDefined();
+      expect(closed.totalCents).toBe(14500);
+    });
+
+    it('rejects closing an account without an open account', () => {
+      expect(() => svc.closeAccount('cafeos.waycoffee.com.tr', 'T1', 'cash')).toThrow(AppError);
+    });
+
+    it('rejects closing an account twice', () => {
+      svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T6',
+        items: [{ productId: 'latte', quantity: 1 }],
+      });
+      svc.closeAccount('cafeos.waycoffee.com.tr', 'T6', 'cash');
+      expect(() => svc.closeAccount('cafeos.waycoffee.com.tr', 'T6', 'card')).toThrow(AppError);
+    });
+
+    it('rejects an invalid payment method', () => {
+      svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T6',
+        items: [{ productId: 'latte', quantity: 1 }],
+      });
+      expect(() => svc.closeAccount('cafeos.waycoffee.com.tr', 'T6', 'bitcoin' as never)).toThrow(AppError);
+    });
+
+    it('does not attach orders to a paid account', () => {
+      svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T6',
+        items: [{ productId: 'latte', quantity: 1 }],
+      });
+      svc.closeAccount('cafeos.waycoffee.com.tr', 'T6', 'cash');
+      const after = svc.createOrder('cafeos.waycoffee.com.tr', {
+        tableCode: 'T6',
+        items: [{ productId: 'latte', quantity: 1 }],
+      });
+      const account = svc.getAccountByTable('cafeos.waycoffee.com.tr', 'T6');
+      expect(account!.orderIds).toHaveLength(1);
+      expect(account!.orderIds).not.toContain(after.id);
+    });
+
+    it('isolates accounts per domain and branch', () => {
+      svc.openAccount('cafeos.waycoffee.com.tr', 'T2');
+      svc.openAccount('cafeos.waycoffee.com.tr::west', 'T2');
+      const main = svc.getTableAccounts('cafeos.waycoffee.com.tr').filter((a) => a.tableCode === 'T2');
+      const branch = svc.getTableAccounts('cafeos.waycoffee.com.tr::west').filter((a) => a.tableCode === 'T2');
+      expect(main).toHaveLength(1);
+      expect(branch).toHaveLength(1);
+      expect(main[0].id).not.toBe(branch[0].id);
+    });
+  });
 });

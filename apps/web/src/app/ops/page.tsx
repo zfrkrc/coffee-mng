@@ -47,6 +47,20 @@ type DailyReport = {
   tableLoad: Array<{ tableCode: string; tableName: string; orders: number }>;
 };
 
+type Account = {
+  id: string;
+  tableCode: string;
+  tableName: string;
+  status: 'open' | 'paid' | 'requested';
+  openedAt: string;
+  requestedAt?: string;
+  closedAt?: string;
+  paymentMethod?: 'cash' | 'card';
+  totalCents: number;
+  itemCount: number;
+  orderIds: string[];
+};
+
 const MENU_FALLBACK_IMAGE = '/menu-placeholder.svg';
 
 export default function OpsPage() {
@@ -55,6 +69,8 @@ export default function OpsPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [tables, setTables] = useState<TableItem[]>([]);
   const [report, setReport] = useState<DailyReport | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountPayMethod, setAccountPayMethod] = useState<Record<string, 'cash' | 'card'>>({});
   const [error, setError] = useState<string | null>(null);
   const [branchSlug, setBranchSlug] = useState<string | null>(null);
 
@@ -70,13 +86,14 @@ export default function OpsPage() {
     try {
       const branch = new URLSearchParams(window.location.search).get('branch');
       const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
-      const [ovRes, menuRes, invRes, tableRes] = await Promise.all([
+      const [ovRes, menuRes, invRes, tableRes, accountRes] = await Promise.all([
         authFetch(`/api/customer/admin/overview${qs}`, { cache: 'no-store' }),
         fetch(`/api/customer/menu${qs}`, { cache: 'no-store' }),
         authFetch(`/api/customer/admin/inventory${qs}`, { cache: 'no-store' }),
         fetch(`/api/customer/tables${qs}`, { cache: 'no-store' }),
+        fetch(`/api/customer/accounts${qs}`, { cache: 'no-store' }),
       ]);
-      if (!ovRes.ok || !menuRes.ok || !invRes.ok || !tableRes.ok) {
+      if (!ovRes.ok || !menuRes.ok || !invRes.ok || !tableRes.ok || !accountRes.ok) {
         throw new Error('Ops verisi yuklenemedi');
       }
 
@@ -84,6 +101,7 @@ export default function OpsPage() {
       const menuJson = (await menuRes.json()) as { items: MenuItem[] };
       const invJson = (await invRes.json()) as { items: InventoryItem[] };
       const tableJson = (await tableRes.json()) as { items: TableItem[] };
+      const accountJson = (await accountRes.json()) as { items: Account[] };
       const reportRes = await authFetch(`/api/customer/admin/reports/daily${qs}`, { cache: 'no-store' });
       const reportJson = reportRes.ok ? ((await reportRes.json()) as DailyReport) : null;
 
@@ -91,6 +109,7 @@ export default function OpsPage() {
       setMenu(menuJson.items);
       setInventory(invJson.items);
       setTables(tableJson.items);
+      setAccounts(accountJson.items);
       setReport(reportJson);
       setError(null);
     } catch (e) {
@@ -170,6 +189,23 @@ export default function OpsPage() {
     await loadAll();
   }
 
+  async function closeAccount(account: Account) {
+    const branch = new URLSearchParams(window.location.search).get('branch');
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    const method = accountPayMethod[account.tableCode] ?? 'cash';
+    const res = await authFetch(`/api/customer/account/${account.tableCode}/close${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentMethod: method }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      setError(`Hesap kapatilamadi: ${txt}`);
+      return;
+    }
+    await loadAll();
+  }
+
   const lowStock = useMemo(() => inventory.filter((x) => x.stock <= x.threshold), [inventory]);
 
   return (
@@ -196,6 +232,7 @@ export default function OpsPage() {
           <a href={`/ops/stock-lab${branchQuery}`} className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Recete Lab</a>
           <a href="#tables" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Masalar</a>
           <a href="#reports" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Rapor</a>
+          <a href="#accounts" className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Hesaplar</a>
         </div>
 
         {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -361,6 +398,75 @@ export default function OpsPage() {
               </div>
             </>
           )}
+        </section>
+
+        <section id="accounts" className="surface-card mt-6 rounded-2xl p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Hesaplar</h2>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+              Acik: {accounts.filter((a) => a.status !== 'paid').length}
+            </span>
+          </div>
+          {accounts.length === 0 && <p className="text-sm text-slate-500">Aktif hesap yok.</p>}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {accounts.map((account) => (
+              <div
+                key={account.id}
+                className={`rounded-lg border p-3 text-sm dark:border-slate-700 ${
+                  account.status === 'paid'
+                    ? 'border-slate-200 bg-slate-50 opacity-70 dark:border-slate-800 dark:bg-slate-900'
+                    : account.status === 'requested'
+                      ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+                      : 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold">{account.tableName}</p>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      account.status === 'paid'
+                        ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                        : account.status === 'requested'
+                          ? 'bg-amber-200 text-amber-900 dark:bg-amber-700 dark:text-white'
+                          : 'bg-emerald-200 text-emerald-900 dark:bg-emerald-700 dark:text-white'
+                    }`}
+                  >
+                    {account.status === 'paid' ? 'Odendi' : account.status === 'requested' ? 'Hesap istendi' : 'Acik'}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {account.itemCount} urun · {account.orderIds.length} siparis
+                  {account.paymentMethod === 'cash' ? ' · Nakit' : account.paymentMethod === 'card' ? ' · Kart' : ''}
+                </p>
+                <p className="mt-2 text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                  {Math.round(account.totalCents / 100)} TL
+                </p>
+                {account.status !== 'paid' && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <select
+                      value={accountPayMethod[account.tableCode] ?? 'cash'}
+                      onChange={(e) =>
+                        setAccountPayMethod((prev) => ({
+                          ...prev,
+                          [account.tableCode]: e.target.value as 'cash' | 'card',
+                        }))
+                      }
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      <option value="cash">Nakit</option>
+                      <option value="card">Kart</option>
+                    </select>
+                    <button
+                      onClick={() => void closeAccount(account)}
+                      className="flex-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
+                    >
+                      Hesap Kapat
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </section>
       </section>
     </main>

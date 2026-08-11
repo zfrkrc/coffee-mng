@@ -64,6 +64,9 @@ export default function CustomerPage() {
   const [tableCode, setTableCode] = useState('T6');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [showLoginHint, setShowLoginHint] = useState(false);
+  const [accountStatus, setAccountStatus] = useState<null | 'requested' | 'open' | 'paid'>(null);
+  const [accountTotal, setAccountTotal] = useState(0);
+  const [accountBusy, setAccountBusy] = useState(false);
 
   useEffect(() => {
     void fetchMe().then((me) => {
@@ -106,6 +109,19 @@ export default function CustomerPage() {
           setTableCode(tableJson.items[0]?.code ?? 'T1');
         }
         setError(null);
+
+        const branchParam = new URLSearchParams(window.location.search).get('branch');
+        const accQs = branchParam ? `&branch=${encodeURIComponent(branchParam)}` : '';
+        const chosen = tableJson.items.some((x) => x.code === tableCode) ? tableCode : (tableJson.items[0]?.code ?? 'T1');
+        const accRes = await fetch(`/api/customer/account/${chosen}?${accQs.startsWith('&') ? accQs.slice(1) : ''}`, { cache: 'no-store' });
+        if (accRes.ok) {
+          const acc = (await accRes.json()) as { status: 'open' | 'paid' | 'requested'; totalCents: number };
+          setAccountStatus(acc.status);
+          setAccountTotal(acc.totalCents);
+        } else {
+          setAccountStatus(null);
+          setAccountTotal(0);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Menu unavailable');
       } finally {
@@ -181,6 +197,28 @@ export default function CustomerPage() {
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Order failed');
+    }
+  }
+
+  async function requestAccount() {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      const branch = new URLSearchParams(window.location.search).get('branch');
+      const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+      const res = await fetch(`/api/customer/account/${tableCode}/request${qs}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!res.ok) throw new Error(`Account HTTP ${res.status}`);
+      const acc = (await res.json()) as { status: 'open' | 'paid' | 'requested'; totalCents: number };
+      setAccountStatus(acc.status);
+      setAccountTotal(acc.totalCents);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Hesap istenemedi');
+    } finally {
+      setAccountBusy(false);
     }
   }
 
@@ -328,6 +366,40 @@ export default function CustomerPage() {
                 {orderState === 'ready' && 'Siparis hazir - afiyet olsun'}
               </p>
               {orderId && <p className="mt-2 text-xs text-slate-500">Takip no: {orderId.slice(0, 8)}</p>}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <p className="font-medium">Hesap</p>
+                {accountStatus === 'requested' && (
+                  <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-700 dark:text-white">
+                    Istek gonderildi
+                  </span>
+                )}
+                {accountStatus === 'paid' && (
+                  <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                    Odendi
+                  </span>
+                )}
+              </div>
+              {accountStatus === 'paid' ? (
+                <p className="mt-1 text-slate-600 dark:text-slate-300">Hesabiniz odendi. Tesekkurler!</p>
+              ) : (
+                <>
+                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                    {accountStatus === 'open'
+                      ? `Hesabiniz: ${Math.round(accountTotal / 100)} TL`
+                      : 'Personel hesabinizi kapatacak.'}
+                  </p>
+                  <button
+                    onClick={() => void requestAccount()}
+                    disabled={accountBusy}
+                    className="mt-3 w-full rounded-xl border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                  >
+                    {accountBusy ? 'Gonderiliyor...' : 'Hesap Iste'}
+                  </button>
+                </>
+              )}
             </div>
           </aside>
         </div>

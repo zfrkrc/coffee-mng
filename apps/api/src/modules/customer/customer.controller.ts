@@ -87,6 +87,15 @@ class UpsertTableDto {
   capacity!: number;
 }
 
+class CloseAccountDto {
+  @IsString()
+  paymentMethod!: 'cash' | 'card';
+
+  @IsOptional()
+  @IsString()
+  branchSlug?: string;
+}
+
 @ApiTags('customer')
 @Controller('customer')
 export class CustomerController {
@@ -202,6 +211,49 @@ export class CustomerController {
   @Get('orders/:orderId')
   getOrder(@Param('orderId') orderId: string, @Req() req: Request) {
     return this.customer.getOrder(this.getRequestDomain(req), orderId);
+  }
+
+  @Get('account/:tableCode')
+  getAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
+    const account = this.customer.getAccountByTable(this.getRequestDomain(req), tableCode);
+    if (!account) throw AppError.notFound('No open account for this table');
+    return account;
+  }
+
+  @Post('account/:tableCode/open')
+  openAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
+    return this.customer.openAccount(this.getRequestDomain(req), tableCode);
+  }
+
+  @Post('account/:tableCode/request')
+  async requestAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
+    const domain = this.getRequestDomain(req);
+    const account = this.customer.requestAccount(domain, tableCode);
+    await this.telegram.notifyByDomain(
+      domain,
+      `<b>Hesap Iste</b>\nMasa: ${account.tableName} (${account.tableCode})\nTutar: ${Math.round(account.totalCents / 100)} TL`,
+    );
+    return account;
+  }
+
+  @Post('account/:tableCode/close')
+  async closeAccount(
+    @Param('tableCode') tableCode: string,
+    @Body() body: CloseAccountDto,
+    @Req() req: Request,
+  ) {
+    const domain = this.getRequestDomain(req);
+    const account = this.customer.closeAccount(domain, tableCode, body.paymentMethod);
+    await this.telegram.notifyByDomain(
+      domain,
+      `<b>Hesap Kapandi</b>\nMasa: ${account.tableName} (${account.tableCode})\nTutar: ${Math.round(account.totalCents / 100)} TL\nOdeme: ${body.paymentMethod === 'cash' ? 'Nakit' : 'Kart'}`,
+    );
+    return account;
+  }
+
+  @Get('accounts')
+  accounts(@Req() req: Request) {
+    return { items: this.customer.getTableAccounts(this.getRequestDomain(req)) };
   }
 
   private requireService(req: Request, service: string): void {

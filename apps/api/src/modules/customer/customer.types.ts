@@ -1,5 +1,7 @@
 export type MenuCategory = 'coffee' | 'tea' | 'food' | 'dessert';
 export type CustomerOrderStatus = 'received' | 'preparing' | 'ready';
+export type PaymentMethod = 'cash' | 'card';
+export type AccountStatus = 'open' | 'paid' | 'requested';
 
 export interface CafeTable {
   id: string;
@@ -65,4 +67,30 @@ export interface DailyReport {
   averageOrderCents: number;
   topProducts: Array<{ productId: string; name: string; qty: number }>;
   tableLoad: Array<{ tableCode: string; tableName: string; orders: number }>;
+}
+
+export interface TableAccount {
+  id: string;
+  tableCode: string;
+  tableName: string;
+  status: AccountStatus;
+  openedAt: string;
+  requestedAt?: string;
+  closedAt?: string;
+  paymentMethod?: PaymentMethod;
+  orderIds: string[];
+}
+
+export interface AccountView {
+  id: string;
+  tableCode: string;
+  tableName: string;
+  status: AccountStatus;
+  openedAt: string;
+  requestedAt?: string;
+  closedAt?: string;
+  paymentMethod?: PaymentMethod;
+  totalCents: number;
+  itemCount: number;
+  orderIds: string[];
 }

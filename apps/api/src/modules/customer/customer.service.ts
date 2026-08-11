@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppError, uuidv7 } from '@cafeos/shared';
 import { computeOrderTotals } from '@cafeos/domain';
 import type {
+  AccountView,
   CafeTable,
   CustomerOrderLine,
   CustomerOrderView,
@@ -9,6 +10,8 @@ import type {
   InventoryItem,
   MenuItem,
   OpsOverview,
+  PaymentMethod,
+  TableAccount,
   TableWithQr,
 } from './customer.types';
 
@@ -44,6 +47,7 @@ type CustomerState = {
   menu: MenuItem[];
   inventory: InventoryItem[];
   orders: Map<string, StoredOrder>;
+  accounts: Map<string, TableAccount>;
 };
 
 const STATUS_FLOW: CustomerOrderView['status'][] = ['received', 'preparing', 'ready'];
@@ -331,6 +335,7 @@ export class CustomerService {
     };
 
     state.orders.set(id, order);
+    this.attachOrderToAccount(state, tableCode, id);
     return this.publicOrder(order);
   }
 
@@ -556,6 +561,7 @@ export class CustomerService {
       menu,
       inventory,
       orders: new Map<string, StoredOrder>(),
+      accounts: new Map<string, TableAccount>(),
     };
   }
 
@@ -581,6 +587,116 @@ export class CustomerService {
         threshold: 5,
       });
     }
+  }
+
+  getTableAccounts(domain: string): AccountView[] {
+    return Array.from(this.stateFor(domain).accounts.values())
+      .sort((a, b) => (a.openedAt < b.openedAt ? 1 : -1))
+      .map((account) => this.toAccountView(this.stateFor(domain), account));
+  }
+
+  getAccountByTable(domain: string, tableCode: string): AccountView | null {
+    const state = this.stateFor(domain);
+    const found = this.accountForTable(state, tableCode);
+    return found ? this.toAccountView(state, found) : null;
+  }
+
+  openAccount(domain: string, tableCode: string): AccountView {
+    const state = this.stateFor(domain);
+    const table = this.tableByCode(domain, tableCode);
+    const existing = this.accountForTable(state, table.code);
+    if (existing) return this.toAccountView(state, existing);
+
+    const now = new Date().toISOString();
+    const account: TableAccount = {
+      id: uuidv7(),
+      tableCode: table.code,
+      tableName: table.name,
+      status: 'open',
+      openedAt: now,
+      orderIds: [],
+    };
+    state.accounts.set(account.id, account);
+    return this.toAccountView(state, account);
+  }
+
+  requestAccount(domain: string, tableCode: string): AccountView {
+    const state = this.stateFor(domain);
+    const account = this.accountForTable(state, tableCode);
+    if (!account) {
+      const opened = this.openAccount(domain, tableCode);
+      return this.requestAccount(domain, tableCode);
+    }
+    if (account.status === 'paid') throw AppError.conflict('Account already paid');
+    account.status = 'requested';
+    account.requestedAt = new Date().toISOString();
+    state.accounts.set(account.id, account);
+    return this.toAccountView(state, account);
+  }
+
+  closeAccount(domain: string, tableCode: string, paymentMethod: PaymentMethod): AccountView {
+    const state = this.stateFor(domain);
+    const account = this.accountForTable(state, tableCode);
+    if (!account) throw AppError.notFound('No open account for this table');
+    if (account.status === 'paid') throw AppError.conflict('Account already paid');
+    if (paymentMethod !== 'cash' && paymentMethod !== 'card') {
+      throw AppError.validation('paymentMethod must be cash or card', { paymentMethod });
+    }
+
+    account.status = 'paid';
+    account.paymentMethod = paymentMethod;
+    account.closedAt = new Date().toISOString();
+    state.accounts.set(account.id, account);
+    return this.toAccountView(state, account);
+  }
+
+  private attachOrderToAccount(state: CustomerState, tableCode: string, orderId: string): void {
+    let account = this.accountForTable(state, tableCode);
+    if (!account) {
+      const code = tableCode.trim().toUpperCase();
+      const table = state.tables.find((t) => t.code === code);
+      account = {
+        id: uuidv7(),
+        tableCode: code,
+        tableName: table?.name ?? code,
+        status: 'open',
+        openedAt: new Date().toISOString(),
+        orderIds: [],
+      };
+      state.accounts.set(account.id, account);
+    }
+    if (account.status === 'paid') return;
+    if (!account.orderIds.includes(orderId)) account.orderIds.push(orderId);
+    state.accounts.set(account.id, account);
+  }
+
+  private accountForTable(state: CustomerState, tableCode: string): TableAccount | null {
+    const code = tableCode.trim().toUpperCase();
+    for (const account of state.accounts.values()) {
+      if (account.tableCode === code) return account;
+    }
+    return null;
+  }
+
+  private toAccountView(state: CustomerState, account: TableAccount): AccountView {
+    const orders = account.orderIds
+      .map((id) => state.orders.get(id))
+      .filter((order): order is StoredOrder => Boolean(order));
+    const totalCents = orders.reduce((acc, order) => acc + order.totalCents, 0);
+    const itemCount = orders.reduce((acc, order) => acc + order.items.reduce((n, item) => n + item.quantity, 0), 0);
+    return {
+      id: account.id,
+      tableCode: account.tableCode,
+      tableName: account.tableName,
+      status: account.status,
+      openedAt: account.openedAt,
+      requestedAt: account.requestedAt,
+      closedAt: account.closedAt,
+      paymentMethod: account.paymentMethod,
+      totalCents,
+      itemCount,
+      orderIds: account.orderIds,
+    };
   }
 
   private publicOrder(order: StoredOrder): CustomerOrderView {
