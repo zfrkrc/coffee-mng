@@ -140,7 +140,7 @@ export class AccessService {
   }
 
   async getBranchByDomainSlug(domain: string, slug: string): Promise<BranchInfo> {
-    const member = await this.prisma.accessMember.findFirst({ where: { domain: domain.trim().toLowerCase(), active: true } });
+    const member = await this.prisma.accessMember.findFirst({ where: { domain: this.stripBranchSuffix(domain), active: true } });
     if (!member) throw AppError.notFound('Member domain not found');
     const normalizedSlug = this.normalizeSlug(slug);
     const branch = await this.prisma.accessBranch.findUnique({
@@ -235,7 +235,7 @@ export class AccessService {
   }
 
   async getMemberByDomain(domain: string): Promise<Pick<MemberAccount, 'id' | 'email' | 'slug' | 'displayName' | 'domain' | 'services' | 'active'>> {
-    const normalizedDomain = domain.trim().toLowerCase();
+    const normalizedDomain = this.stripBranchSuffix(domain);
     const member = await this.prisma.accessMember.findFirst({ where: { domain: normalizedDomain } });
     if (!member) throw AppError.notFound('Member domain not found');
     return {
@@ -345,7 +345,7 @@ export class AccessService {
     telegramBotToken: string | null;
     telegramChatId: string | null;
   }> {
-    const member = await this.prisma.accessMember.findFirst({ where: { domain: domain.trim().toLowerCase() } });
+    const member = await this.prisma.accessMember.findFirst({ where: { domain: this.stripBranchSuffix(domain) } });
     if (!member) throw AppError.notFound('Member domain not found');
     return {
       id: member.id,
@@ -354,6 +354,12 @@ export class AccessService {
       telegramBotToken: member.telegramBotToken,
       telegramChatId: member.telegramChatId,
     };
+  }
+
+  private stripBranchSuffix(domain: string): string {
+    const normalized = domain.trim().toLowerCase();
+    const idx = normalized.indexOf('::');
+    return idx === -1 ? normalized : normalized.slice(0, idx);
   }
 
   private generateMemberToken(domain: string): string {
