@@ -605,7 +605,7 @@ export class CustomerService {
     const state = this.stateFor(domain);
     const table = this.tableByCode(domain, tableCode);
     const existing = this.accountForTable(state, table.code);
-    if (existing) return this.toAccountView(state, existing);
+    if (existing && existing.status !== 'paid') return this.toAccountView(state, existing);
 
     const now = new Date().toISOString();
     const account: TableAccount = {
@@ -672,10 +672,13 @@ export class CustomerService {
 
   private accountForTable(state: CustomerState, tableCode: string): TableAccount | null {
     const code = tableCode.trim().toUpperCase();
+    let fallback: TableAccount | null = null;
     for (const account of state.accounts.values()) {
-      if (account.tableCode === code) return account;
+      if (account.tableCode !== code) continue;
+      if (account.status !== 'paid') return account;
+      if (!fallback) fallback = account;
     }
-    return null;
+    return fallback;
   }
 
   private toAccountView(state: CustomerState, account: TableAccount): AccountView {
