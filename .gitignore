@@ -38,3 +38,8 @@ infra/docker/certbot/
 
 # PWA
 apps/web/public/sw.js.map
+
+# AI tool metadata
+.claude/
+.mcp.json
+.repowise/
