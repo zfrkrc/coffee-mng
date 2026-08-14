@@ -42,7 +42,7 @@ export const apiEnvSchema = baseEnvSchema.extend({
   /** Public key (PEM, base64 or raw) used to verify offline license tokens. Empty = verification disabled (dev only). */
   LICENSE_PUBLIC_KEY: z.string().optional().default(''),
   LICENSE_GRACE_SECONDS: z.coerce.number().int().default(7 * 24 * 3600),
-  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().default(900),
+  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().default(43200),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().default(7 * 24 * 3600),
   JWT_ISSUER: z.string().default('cafeos-edge'),
   JWT_SECRET: z.string().min(16).default('cafeos-dev-secret-please-change'),
