@@ -38,6 +38,26 @@ export default function HomePage() {
   const brandName = isWaycoffee ? 'WayCoffee' : 'CafeOS';
   const tagline = isWaycoffee ? 'WayCoffee dijital kafe yönetim platformu' : 'Kafeler için dijital yönetim platformu';
 
+  const [lead, setLead] = useState({ name: '', email: '', phone: '' });
+  const [leadStatus, setLeadStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+
+  async function submitLead() {
+    if (!lead.name.trim() || !lead.email.trim()) return;
+    setLeadStatus('sending');
+    try {
+      const res = await fetch('/api/customer/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: lead.name, email: lead.email, phone: lead.phone, site: isWaycoffee ? 'cafeos.waycoffee.com.tr' : 'cafeos.zk.net.tr' }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      setLeadStatus('done');
+      setLead({ name: '', email: '', phone: '' });
+    } catch {
+      setLeadStatus('error');
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-gray-100">
       {/* Nav */}
@@ -74,6 +94,21 @@ export default function HomePage() {
               <span className="flex items-center gap-1.5">✓ Masa Hesap</span>
               <span className="flex items-center gap-1.5">✓ GPS Doğrulama</span>
               <span className="flex items-center gap-1.5">✓ Günlük Kapanış</span>
+            </div>
+            <div className="mx-auto mt-10 max-w-md">
+              <div className="rounded-2xl border border-gray-200 bg-white/80 p-6 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+                <p className="text-sm font-semibold">Ücretsiz başlayın</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Bilgilerinizi bırakın, sizi arayalım.</p>
+                <div className="mt-4 space-y-2">
+                  <input value={lead.name} onChange={(e) => setLead({ ...lead, name: e.target.value })} placeholder="Ad Soyad" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                  <input value={lead.email} onChange={(e) => setLead({ ...lead, email: e.target.value })} placeholder="E-posta" type="email" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                  <input value={lead.phone} onChange={(e) => setLead({ ...lead, phone: e.target.value })} placeholder="Telefon (opsiyonel)" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                  <button onClick={() => void submitLead()} disabled={leadStatus === 'sending'} className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">
+                    {leadStatus === 'sending' ? 'Gönderiliyor...' : leadStatus === 'done' ? '✓ Alındı, teşekkürler!' : 'Ücretsiz Başla'}
+                  </button>
+                  {leadStatus === 'error' && <p className="text-xs text-rose-600">Bir hata oldu, tekrar deneyin.</p>}
+                </div>
+              </div>
             </div>
           </div>
         </div>

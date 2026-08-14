@@ -10,6 +10,8 @@ import { API_ENV } from '../../core/config/config.module';
 import type { ApiEnv } from '@cafeos/config';
 import { verifyAuthToken } from '../../core/auth/token';
 import { AppError } from '@cafeos/shared';
+import { PRISMA } from '../../core/database/prisma.module';
+import type { PrismaClient } from '@prisma/client';
 
 class CreateOrderItemDto {
   @IsString()
@@ -103,7 +105,26 @@ export class CustomerController {
     private readonly customer: CustomerService,
     private readonly telegram: TelegramNotifyService,
     @Inject(API_ENV) private readonly env: ApiEnv,
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
   ) {}
+
+  @Post('leads')
+  async createLead(@Body() body: Record<string, string>) {
+    const name = (body?.name ?? '').trim();
+    const email = (body?.email ?? '').trim().toLowerCase();
+    if (!name || !email) throw AppError.validation('name and email required', body);
+    const lead = await this.prisma.lead.create({
+      data: {
+        id: crypto.randomUUID(),
+        name,
+        email,
+        phone: body?.phone?.trim() || null,
+        site: body?.site?.trim() || null,
+        note: body?.note?.trim() || null,
+      },
+    });
+    return { ok: true, id: lead.id };
+  }
 
   @Get('tables')
   tables(@Req() req: Request) {

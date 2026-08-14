@@ -318,3 +318,18 @@ model OrderItem {
   @@index([status])
   @@map("order_items")
 }
+
+// ── Lead capture ("Ücretsiz Başla / Hemen Başla" formları) ──
+model Lead {
+  id        String   @id
+  name      String
+  email     String
+  phone     String?
+  site      String?
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([createdAt])
+  @@map("leads")
+}
