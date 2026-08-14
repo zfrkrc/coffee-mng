@@ -622,12 +622,11 @@ export class CustomerService {
 
   requestAccount(domain: string, tableCode: string): AccountView {
     const state = this.stateFor(domain);
-    const account = this.accountForTable(state, tableCode);
-    if (!account) {
-      const opened = this.openAccount(domain, tableCode);
-      return this.requestAccount(domain, tableCode);
+    let account = this.accountForTable(state, tableCode);
+    // Önceki hesap ödenmişse (eski ziyaret) yeni hesap aç; "already paid" hatası verme.
+    if (!account || account.status === 'paid') {
+      account = this.openAccount(domain, tableCode);
     }
-    if (account.status === 'paid') throw AppError.conflict('Account already paid');
     account.status = 'requested';
     account.requestedAt = new Date().toISOString();
     state.accounts.set(account.id, account);
@@ -652,7 +651,8 @@ export class CustomerService {
 
   private attachOrderToAccount(state: CustomerState, tableCode: string, orderId: string): void {
     let account = this.accountForTable(state, tableCode);
-    if (!account) {
+    // Önceki hesap ödenmişse sipariş yetim kalmasın — yeni açık hesap aç ve bağla.
+    if (!account || account.status === 'paid') {
       const code = tableCode.trim().toUpperCase();
       const table = state.tables.find((t) => t.code === code);
       account = {
@@ -665,7 +665,6 @@ export class CustomerService {
       };
       state.accounts.set(account.id, account);
     }
-    if (account.status === 'paid') return;
     if (!account.orderIds.includes(orderId)) account.orderIds.push(orderId);
     state.accounts.set(account.id, account);
   }

@@ -184,14 +184,17 @@ model AccessMember {
 }
 
 model AccessBranch {
-  id          String   @id
-  memberId    String   @map("member_id")
-  slug        String
-  name        String
-  address     String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id              String   @id
+  memberId        String   @map("member_id")
+  slug            String
+  name            String
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  geofenceMeters  Int      @default(500) @map("geofence_meters")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   member AccessMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
@@ -215,4 +218,103 @@ model AccessStaff {
   @@unique([memberId, email])
   @@index([memberId])
   @@map("access_staff")
+}
+
+// ── POS DOMAIN — kalıcı hesap/sipariş takibi ("standart dükkan") ──
+// memberId + branchSlug: AccessMember/AccessBranch kimliğiyle scopelar.
+// Restarts'ta silinmez; gün vardiyasıyla açılır/kapanır.
+
+model DayShift {
+  id                 String    @id
+  memberId           String    @map("member_id")
+  branchSlug         String    @map("branch_slug")
+  status             String    @default("open") // open | closed
+  openedAt           DateTime  @default(now()) @map("opened_at")
+  openedBy           String?   @map("opened_by")
+  closedAt          DateTime?  @map("closed_at")
+  closedBy          String?   @map("closed_by")
+  openingFloatCents Int       @default(0) @map("opening_float_cents")
+  expectedCents      Int?      @map("expected_cents")
+  countedCents       Int?      @map("counted_cents")
+  summary           Json?     // Z-rapor: {cashCents, cardCents, orderCount, accountCount, voidCents, ...}
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  accounts TableAccount[]
+  orders   Order[]
+
+  @@unique([memberId, branchSlug, openedAt])
+  @@index([memberId, branchSlug, status])
+  @@map("day_shifts")
+}
+
+model TableAccount {
+  id            String    @id
+  memberId      String    @map("member_id")
+  branchSlug    String    @map("branch_slug")
+  dayShiftId    String    @map("day_shift_id")
+  tableCode     String    @map("table_code")
+  tableName     String    @map("table_name")
+  status        String    @default("open") // open | requested | paid | cancelled
+  openedAt      DateTime  @default(now()) @map("opened_at")
+  requestedAt   DateTime? @map("requested_at")
+  closedAt      DateTime? @map("closed_at")
+  paymentMethod String?   @map("payment_method") // cash | card
+  totalCents    Int       @default(0) @map("total_cents")
+  itemCount    Int       @default(0) @map("item_count")
+  note          String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  dayShift DayShift  @relation(fields: [dayShiftId], references: [id])
+  orders   Order[]
+
+  @@index([memberId, branchSlug, status])
+  @@index([dayShiftId, status])
+  @@index([tableCode, status])
+  @@map("table_accounts")
+}
+
+model Order {
+  id          String    @id
+  memberId    String    @map("member_id")
+  branchSlug  String    @map("branch_slug")
+  dayShiftId  String    @map("day_shift_id")
+  accountId   String?   @map("account_id")
+  tableCode   String    @map("table_code")
+  tableName   String    @map("table_name")
+  status      String    @default("received") // received | preparing | ready | served | cancelled
+  totalCents  Int       @default(0) @map("total_cents")
+  note        String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  dayShift DayShift      @relation(fields: [dayShiftId], references: [id])
+  account  TableAccount? @relation(fields: [accountId], references: [id])
+  items    OrderItem[]
+
+  @@index([memberId, branchSlug, status])
+  @@index([accountId])
+  @@index([dayShiftId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String   @id
+  orderId         String   @map("order_id")
+  menuItemId      String?  @map("menu_item_id")
+  name            String
+  quantity        Int      @default(1)
+  unitPriceCents  Int      @map("unit_price_cents")
+  lineTotalCents  Int      @map("line_total_cents")
+  status          String   @default("ordered") // ordered | preparing | ready | served | voided | returned
+  note            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@map("order_items")
 }
