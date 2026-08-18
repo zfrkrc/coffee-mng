@@ -49,6 +49,9 @@ export const apiEnvSchema = baseEnvSchema.extend({
   SUPERADMIN_PASSWORD: z.string().min(8).default('HeroKey2026!'),
   /** Space-separated CORS origins for the web app. */
   WEB_ORIGINS: z.string().default('http://localhost:3001,http://cafe.local'),
+  /** Merkezi InsightMap AI Gateway (opsiyonel — boşsa AI yardımcıları deterministik kalır). */
+  INSIGHTMAP_AI_URL: z.string().default('https://insightmap.tr'),
+  INSIGHTMAP_AI_SERVICE_KEY: z.string().default(''),
   CLOUD_API_URL: z.string().default(''),
   CLOUD_SYNC_ENABLED: bool,
   ENABLE_SWAGGER: bool,

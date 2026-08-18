@@ -1,13 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CustomerService } from '../customer/customer.service';
 import type { AiStationForecast, AiStationRecommendation, AiStationSnapshot, AiStationSummary } from './ai-station.types';
 import { AiUsageService, type AiUsageRecord } from './ai-usage.service';
+import { AiGatewayClient } from './ai-gateway.client';
 
 @Injectable()
 export class AiStationService {
+  private readonly logger = new Logger(AiStationService.name);
+
   constructor(
     private readonly customer: CustomerService,
     private readonly aiUsage: AiUsageService,
+    private readonly gateway: AiGatewayClient,
   ) {}
 
   async getSnapshot(domain: string): Promise<AiStationSnapshot & { usage: AiUsageRecord }> {
@@ -86,6 +90,38 @@ export class AiStationService {
 
   getUsageAggregate(hours: number) {
     return this.aiUsage.getAggregate(hours);
+  }
+
+  async getManagementSummary(domain: string): Promise<{ summary: string; source: 'ai' | 'deterministic' }> {
+    // Deterministik veri önce Cafe'nin kendi servislerinden üretilir — AI yalnızca yorumlar.
+    const overview = this.customer.getOverview(domain);
+    const report = this.customer.getDailyReport(domain);
+    const deterministic = this.buildSummary(overview.openOrders, overview.lowStockCount, report.orderCount);
+
+    if (!this.gateway.enabled) {
+      return { summary: deterministic.message, source: 'deterministic' };
+    }
+
+    try {
+      const summary = await this.gateway.managementSummary(
+        {
+          open_orders: overview.openOrders,
+          order_count: report.orderCount,
+          average_order_cents: report.averageOrderCents,
+          low_stock_count: overview.lowStockCount,
+          total_revenue_cents: overview.totalRevenueCents,
+          top_products: (report.topProducts || []).map((p) => ({ name: p.name, qty: p.qty })),
+          deterministic_summary: deterministic.message,
+        },
+        domain,
+      );
+      if (summary) {
+        return { summary, source: 'ai' };
+      }
+    } catch (err) {
+      this.logger.warn(`AI yönetici özeti başarısız, deterministik fallback: ${(err as Error).message}`);
+    }
+    return { summary: deterministic.message, source: 'deterministic' };
   }
 
   private buildForecasts(

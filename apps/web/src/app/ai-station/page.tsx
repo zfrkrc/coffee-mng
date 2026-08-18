@@ -32,6 +32,7 @@ type Snapshot = {
 
 export default function AiStationPage() {
   const [data, setData] = useState<Snapshot | null>(null);
+  const [mgmt, setMgmt] = useState<{ summary: string; source: 'ai' | 'deterministic' } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -46,8 +47,18 @@ export default function AiStationPage() {
     }
   }
 
+  async function loadMgmt() {
+    try {
+      const res = await fetch('/api/ai-station/management-summary', { cache: 'no-store' });
+      if (res.ok) setMgmt((await res.json()) as { summary: string; source: 'ai' | 'deterministic' });
+    } catch {
+      setMgmt(null);
+    }
+  }
+
   useEffect(() => {
     void load();
+    void loadMgmt();
     const t = setInterval(() => void load(), 15000);
     return () => clearInterval(t);
   }, []);
@@ -88,10 +99,27 @@ export default function AiStationPage() {
                   <UsageCell title="Prompt" value={`${data.usage.promptTokens}`} />
                   <UsageCell title="Completion" value={`${data.usage.completionTokens}`} />
                   <UsageCell title="Toplam" value={`${data.usage.totalTokens}`} />
-                  <UsageCell title="Tahmini TL" value={data.usage.costTl.toFixed(4)} />
+                  <UsageCell title="Tahmini TL (yerel)" value={data.usage.costTl.toFixed(4)} />
                 </div>
               )}
+              {data.usage && (
+                <p className="mt-2 text-[11px] text-sky-100/80">
+                  Token/TL değerleri yerel tahmini analitiktir — gerçek sağlayıcı maliyeti değildir.
+                </p>
+              )}
             </section>
+
+            {mgmt && (
+              <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Yönetici Özeti</p>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium uppercase ${mgmt.source === 'ai' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {mgmt.source === 'ai' ? 'AI' : 'Deterministik'}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-700 dark:text-slate-200">{mgmt.summary}</p>
+              </section>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-2">
               <section className="surface-card rounded-2xl p-4">

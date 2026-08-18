@@ -22,6 +22,11 @@ export class AiStationController {
     return this.aiStation.getSnapshot(this.getRequestDomain(req));
   }
 
+  @Get('management-summary')
+  managementSummary(@Req() req: Request) {
+    return this.aiStation.getManagementSummary(this.getRequestDomain(req));
+  }
+
   @Get('usage')
   async usage(@Req() req: Request, @Query('hours') hoursQuery?: string) {
     const auth = req.headers.authorization ?? '';
