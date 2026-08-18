@@ -68,8 +68,8 @@ export default function AiStationPage() {
       <section className="mx-auto max-w-7xl">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">AI Station</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Operasyon zekasi, oneri ve stok tahmini</p>
+            <h1 className="text-2xl font-bold">AI Analiz</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Operasyon zekası, öneri ve stok tahmini</p>
           </div>
           <div className="flex items-center gap-2">
             <a href="/ops" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">Ops panel</a>
@@ -79,7 +79,7 @@ export default function AiStationPage() {
 
         {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-        {!data && !error && <p className="text-sm text-slate-500">AI snapshot bekleniyor...</p>}
+        {!data && !error && <p className="text-sm text-slate-500">AI analiz bekleniyor...</p>}
 
         {data && (
           <>
@@ -118,12 +118,17 @@ export default function AiStationPage() {
                   </span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-200">{mgmt.summary}</p>
+                {mgmt.source === 'deterministic' && (
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    AI özeti şu anda kullanılamıyor — mevcut operasyon özeti gösteriliyor.
+                  </p>
+                )}
               </section>
             )}
 
             <div className="grid gap-6 lg:grid-cols-2">
               <section className="surface-card rounded-2xl p-4">
-                <h2 className="mb-3 text-lg font-semibold">Aksiyon onerileri</h2>
+                <h2 className="mb-3 text-lg font-semibold">Aksiyon önerileri</h2>
                 <div className="space-y-2">
                   {data.recommendations.map((r) => (
                     <article key={r.id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
@@ -140,19 +145,19 @@ export default function AiStationPage() {
               </section>
 
               <section className="surface-card rounded-2xl p-4">
-                <h2 className="mb-3 text-lg font-semibold">Kisa vade tahmin</h2>
+                <h2 className="mb-3 text-lg font-semibold">Kısa vade tahmin</h2>
                 <div className="space-y-2">
                   {data.forecasts.map((f) => (
                     <div key={f.productId} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
                       <div className="flex items-center justify-between">
                         <p className="font-medium">{f.productName}</p>
-                        <p className="text-xs text-slate-500">Guven: %{Math.round(f.confidence * 100)}</p>
+                        <p className="text-xs text-slate-500">Güven: %{Math.round(f.confidence * 100)}</p>
                       </div>
-                      <p className="mt-1 text-slate-600 dark:text-slate-300">Onerilen hazir stok: <strong>{f.forecastQty}</strong></p>
+                      <p className="mt-1 text-slate-600 dark:text-slate-300">Önerilen hazır stok: <strong>{f.forecastQty}</strong></p>
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-slate-500">Guncelleme: {new Date(data.generatedAt).toLocaleString('tr-TR')}</p>
+                <p className="mt-3 text-xs text-slate-500">Güncelleme: {new Date(data.generatedAt).toLocaleString('tr-TR')}</p>
               </section>
             </div>
           </>

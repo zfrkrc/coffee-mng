@@ -33,7 +33,7 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
     return (
       <main className="min-h-screen px-4 py-8 sm:px-6">
         <section className="mx-auto max-w-xl surface-card rounded-2xl p-6">
-          <p className="text-sm text-slate-500">Yetki kontrolu...</p>
+          <p className="text-sm text-slate-500">Yetki kontrolü...</p>
         </section>
       </main>
     );
