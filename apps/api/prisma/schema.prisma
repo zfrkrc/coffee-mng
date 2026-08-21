@@ -162,24 +162,26 @@ model AuditLog {
 }
 
 model AccessMember {
-  id          String   @id
-  email       String   @unique
-  slug        String   @unique
-  displayName String   @map("display_name")
-  domain      String   @unique
-  services    String[]
-  active      Boolean  @default(true)
-  token       String   @unique
-  passwordHash String? @map("password_hash")
-  telegramEnabled Boolean @default(false) @map("telegram_enabled")
-  telegramBotToken String? @map("telegram_bot_token")
-  telegramChatId String? @map("telegram_chat_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                    String   @id
+  email                 String   @unique
+  slug                  String   @unique
+  displayName           String   @map("display_name")
+  domain                String   @unique
+  services              String[]
+  active                Boolean  @default(true)
+  token                 String   @unique
+  passwordHash          String?  @map("password_hash")
+  telegramEnabled       Boolean  @default(false) @map("telegram_enabled")
+  telegramBotToken      String?  @map("telegram_bot_token")
+  telegramChatId        String?  @map("telegram_chat_id")
+  insightmapTenantId    String?  @map("insightmap_tenant_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
-  staff AccessStaff[]
+  staff    AccessStaff[]
   branches AccessBranch[]
 
+  @@index([insightmapTenantId])
   @@map("access_members")
 }
 
