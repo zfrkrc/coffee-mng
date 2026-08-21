@@ -224,6 +224,40 @@ model AccessStaff {
 // memberId + branchSlug: AccessMember/AccessBranch kimliğiyle scopelar.
 // Restarts'ta silinmez; gün vardiyasıyla açılır/kapanır.
 
+// Domain-level menu items (per member+branch). Seed edilir; upsert/deletable.
+model CafeMenuItem {
+  id            String   @id
+  memberId      String   @map("member_id")
+  branchSlug    String?  @map("branch_slug")
+  name          String
+  category      String   @default("coffee")
+  priceCents    Int      @map("price_cents")
+  note          String   @default("")
+  imageUrl      String?  @map("image_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([memberId, branchSlug, id])
+  @@index([memberId, branchSlug])
+  @@map("cafe_menu_items")
+}
+
+// Domain-level tables (per member+branch). Seed edilir; upsert/deletable.
+model CafeTable {
+  id          String   @id
+  memberId    String   @map("member_id")
+  branchSlug  String?  @map("branch_slug")
+  code        String
+  name        String
+  capacity    Int      @default(4)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([memberId, branchSlug, code])
+  @@index([memberId, branchSlug])
+  @@map("cafe_tables")
+}
+
 model DayShift {
   id                 String    @id
   memberId           String    @map("member_id")
