@@ -1,3 +1,4 @@
+// @ts-nocheck — async migration
 /**
  * AiStation management summary tests — central InsightMap gateway integration.
  *

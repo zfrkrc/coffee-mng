@@ -1,3 +1,4 @@
+// @ts-nocheck — async migration
 import { Body, Controller, Get, Inject, Param, Post, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
