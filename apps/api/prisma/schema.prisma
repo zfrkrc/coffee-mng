@@ -258,6 +258,25 @@ model CafeTable {
   @@map("cafe_tables")
 }
 
+// Domain-level inventory (per member+branch+product). Stock value persists
+// through restarts. Stock movement history NOT tracked in this table.
+model CafeInventory {
+  id          String   @id
+  memberId    String   @map("member_id")
+  branchSlug  String?  @map("branch_slug")
+  menuItemId  String   @map("menu_item_id")
+  productName String   @map("product_name")
+  unit        String   @default("pcs")
+  stock       Int      @default(0)
+  threshold   Int      @default(5)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([memberId, branchSlug, menuItemId])
+  @@index([memberId, branchSlug])
+  @@map("cafe_inventory")
+}
+
 model DayShift {
   id                 String    @id
   memberId           String    @map("member_id")

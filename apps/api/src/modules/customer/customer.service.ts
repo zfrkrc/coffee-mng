@@ -82,6 +82,7 @@ export class CustomerService {
   private async ensureSeeded(memberId: string, branchSlug: string | null) {
     await this.seedTables(memberId, branchSlug);
     await this.seedMenu(memberId, branchSlug);
+    await this.seedInventory(memberId, branchSlug);
   }
 
   // ── menu ─────────────────────────────────────────────────────────────────
@@ -154,13 +155,53 @@ export class CustomerService {
     return found;
   }
 
-  // ── inventory (in-memory seed only — Prisma'da inventory tablosu yok) ───
-  async getInventory(_domain: string): Promise<InventoryItem[]> {
-    // Prisma schema'da inventory tablosu yok; menu item'larından türet
-    return [];
+  // ── inventory (DB-backed, persists through restarts) ───────────────────
+  async getInventory(domain: string): Promise<InventoryItem[]> {
+    const { memberId, branchSlug } = this.resolveMember(domain);
+    const rows = await this.db.cafeInventory.findMany({ where: { memberId, branchSlug: branchSlug ?? null } });
+    return rows.map((r) => ({
+      id: r.id, productId: r.menuItemId, productName: r.productName,
+      unit: r.unit as InventoryItem['unit'], stock: r.stock, threshold: r.threshold,
+    }));
   }
-  async adjustInventory(_domain: string, _productId: string, _delta: number): Promise<InventoryItem> {
-    throw AppError.notFound('Inventory not yet persisted');
+
+  async adjustInventory(domain: string, productId: string, delta: number): Promise<InventoryItem> {
+    const { memberId, branchSlug } = this.resolveMember(domain);
+    if (!Number.isInteger(delta)) throw AppError.validation('Delta must be integer');
+    const item = await this.db.cafeInventory.findFirst({
+      where: { memberId, branchSlug: branchSlug ?? null, menuItemId: productId },
+    });
+    if (!item) throw AppError.notFound('Inventory item not found');
+    const updated = await this.db.cafeInventory.update({
+      where: { id: item.id },
+      data: { stock: Math.max(0, item.stock + delta) },
+    });
+    return { id: updated.id, productId: updated.menuItemId, productName: updated.productName,
+             unit: updated.unit as InventoryItem['unit'], stock: updated.stock, threshold: updated.threshold };
+  }
+
+  private async seedInventory(memberId: string, branchSlug: string | null) {
+    const existing = await this.db.cafeInventory.count({ where: { memberId, branchSlug: branchSlug ?? null } });
+    if (existing > 0) return;
+    const menu = await this.db.cafeMenuItem.findMany({ where: { memberId, branchSlug: branchSlug ?? null } });
+    const defaults = [
+      { productId: 'latte', threshold: 10, stock: 34 },
+      { productId: 'americano', threshold: 10, stock: 28 },
+      { productId: 'earlgrey', threshold: 8, stock: 7 },
+      { productId: 'toast', threshold: 6, stock: 12 },
+      { productId: 'croissant', threshold: 8, stock: 5 },
+      { productId: 'tiramisu', threshold: 5, stock: 9 },
+    ];
+    await this.db.cafeInventory.createMany({
+      data: defaults.map((d) => {
+        const m = menu.find((x) => x.id === d.productId);
+        return {
+          id: uuidv7(), memberId, branchSlug: branchSlug ?? null,
+          menuItemId: d.productId, productName: m?.name ?? d.productId,
+          unit: 'pcs', stock: d.stock, threshold: d.threshold,
+        };
+      }),
+    });
   }
 
   // ── orders ───────────────────────────────────────────────────────────────
@@ -222,8 +263,10 @@ export class CustomerService {
       this.db.order.count({ where: { memberId, branchSlug: branchSlug ?? null, status: { not: 'ready' } } }),
       this.db.order.findMany({ where: { memberId, branchSlug: branchSlug ?? null } }),
     ]);
+    const inv = await this.db.cafeInventory.findMany({ where: { memberId, branchSlug: branchSlug ?? null } });
+    const lowStockCount = inv.filter((i) => i.stock <= i.threshold).length;
     const totalRevenueCents = orders.filter((o) => o.status === 'ready').reduce((a, o) => a + o.totalCents, 0);
-    return { menuCount, tableCount, openOrders, lowStockCount: 0, totalRevenueCents };
+    return { menuCount, tableCount, openOrders, lowStockCount, totalRevenueCents };
   }
 
   async getDailyReport(domain: string): Promise<DailyReport> {
