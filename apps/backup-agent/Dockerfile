@@ -20,6 +20,8 @@ ENV NODE_ENV=production
 
 COPY --from=build /app/out ./
 COPY --from=build /app/apps/backup-agent/dist ./dist
+COPY --from=build /app/apps/backup-agent/scripts/backup.sh /app/scripts/backup.sh
+RUN chmod +x /app/scripts/backup.sh
 
 EXPOSE 3200
 CMD ["node", "dist/main.js"]

@@ -85,6 +85,9 @@ export const backupAgentEnvSchema = baseEnvSchema.extend({
   BACKUP_ENCRYPTION_PUBLIC_KEY: z.string().optional().default(''),
   CLOUD_API_URL: z.string().default(''),
   CLOUD_SYNC_ENABLED: bool,
+  /** Optional Telegram alert target (bot token + chat id). Empty = alerting off. */
+  TELEGRAM_BOT_TOKEN: z.string().optional().default(''),
+  TELEGRAM_ALERT_CHAT_ID: z.string().optional().default(''),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

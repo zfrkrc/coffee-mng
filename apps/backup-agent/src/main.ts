@@ -14,8 +14,8 @@
  * asynchronous, non-blocking side-effect only.
  */
 import express from 'express';
-import { execFile, execFileSync } from 'child_process';
-import { mkdirSync, readdirSync, rmSync, statSync, existsSync } from 'fs';
+import { execFile } from 'child_process';
+import { mkdirSync, readdirSync, rmSync, statSync } from 'fs';
 import { join } from 'path';
 import cron from 'node-cron';
 import { loadConfig, backupAgentEnvSchema } from '@cafeos/config';
@@ -26,59 +26,63 @@ const logger = new Logger({ nodeId: env.NODE_ID, level: env.LOG_LEVEL });
 
 mkdirSync(env.BACKUP_DIR, { recursive: true });
 
-function parseConnectionString(url: string): {
-  host: string;
-  port: string;
-  db: string;
-  user: string;
-} {
-  const m = url.match(/postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:/]+):?(\d+)?\/(.+)/);
-  if (!m) throw new Error(`Cannot parse DATABASE_URL: ${url}`);
-  return { user: m[1], port: m[4] ?? '5432', host: m[3], db: m[5] };
-}
+// Safe backup is delegated to a shell script (pipefail, .tmp, gzip -t, rename).
+const BACKUP_SCRIPT = process.env.BACKUP_SCRIPT_PATH || '/app/scripts/backup.sh';
 
-function runPgDump(): Promise<string> {
+function runBackupScript(): Promise<string> {
   return new Promise((resolve, reject) => {
-    const { host, port, db, user } = parseConnectionString(env.DATABASE_URL);
-    const file = join(env.BACKUP_DIR, `cafeos-backup-${Date.now()}.sql.gz`);
-    const writeStream = require('fs').createWriteStream(file);
-    writeStream.on('error', reject);
-
-    const dump = execFile(
-      'pg_dump',
-      ['-h', host, '-p', port, '-U', user, '-d', db, '--no-owner', '--no-privileges', '-Fc'],
-      { env: { ...process.env, PGPASSWORD: new URL(env.DATABASE_URL).password } },
-      (err) => {
-        if (err) reject(err);
+    execFile(
+      BACKUP_SCRIPT,
+      [],
+      {
+        env: { ...process.env, DATABASE_URL: env.DATABASE_URL, BACKUP_DIR: env.BACKUP_DIR },
+        timeout: 30 * 60 * 1000,
+      },
+      (err, stdout, stderr) => {
+        if (stderr && stderr.trim()) logger.warn(`backup stderr: ${stderr.trim()}`);
+        if (err) {
+          reject(err);
+          return;
+        }
+        const file = stdout.trim();
+        if (!file) {
+          reject(new Error('backup script returned no path'));
+          return;
+        }
+        resolve(file);
       },
     );
-    const gzip = execFile('gzip', ['-9'], (err) => {
-      if (err) reject(err);
-    });
-
-    if (dump.stdout && gzip.stdin) {
-      dump.stdout.pipe(gzip.stdin);
-    }
-    if (gzip.stdout) {
-      gzip.stdout.pipe(writeStream);
-    }
-    writeStream.on('finish', () => resolve(file));
-    dump.stderr?.on('data', (d: Buffer) => logger.debug(`pg_dump: ${d.toString()}`));
   });
 }
 
-async function createBackup(): Promise<{ file: string; sizeBytes: number; checksum?: string }> {
-  const file = await runPgDump();
+async function sendAlert(message: string): Promise<void> {
+  const token = env.TELEGRAM_BOT_TOKEN;
+  const chatId = env.TELEGRAM_ALERT_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: message }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) logger.warn('telegram alert failed', { status: res.status });
+  } catch (e) {
+    logger.warn('telegram alert failed', { detail: e instanceof Error ? e.message : e });
+  }
+}
+
+async function createBackup(): Promise<{ file: string; sizeBytes: number }> {
+  const file = await runBackupScript();
   const size = statSync(file).size;
-  // Integrity: verify the archive is a readable gzip stream.
-  execFileSync('gzip', ['-t', file]);
-  logger.info('backup created', { file, sizeBytes: size });
+  logger.info('backup created (verified)', { file, sizeBytes: size });
   return { file, sizeBytes: size };
 }
 
 function pruneOldBackups(): number {
+  // Only verified final artifacts (`.sql.gz`) are eligible; never `.tmp`.
   const files = readdirSync(env.BACKUP_DIR)
-    .filter((f) => f.startsWith('cafeos-backup-'))
+    .filter((f) => f.startsWith('cafeos-backup-') && f.endsWith('.sql.gz'))
     .map((f) => ({ f, ts: statSync(join(env.BACKUP_DIR, f)).mtimeMs }))
     .sort((a, b) => b.ts - a.ts);
   const cutoff = Date.now() - env.BACKUP_RETENTION_DAYS * 86400_000;
@@ -106,14 +110,16 @@ app.post('/backup', async (_req, res) => {
     pruneOldBackups();
     res.json({ ok: true, ...result });
   } catch (err) {
-    logger.error('backup failed', { detail: err instanceof Error ? err.message : err });
+    const detail = err instanceof Error ? err.message : String(err);
+    logger.error('backup failed', { detail });
+    await sendAlert(`[CafeOS Backup] Yedek alınamadı: ${detail}`);
     res.status(500).json({ ok: false, error: { code: 'INTERNAL', message: 'backup failed' } });
   }
 });
 
 app.get('/backups', (_req, res) => {
   const files = readdirSync(env.BACKUP_DIR)
-    .filter((f) => f.startsWith('cafeos-backup-'))
+    .filter((f) => f.startsWith('cafeos-backup-') && f.endsWith('.sql.gz'))
     .map((f) => ({ file: f, sizeBytes: statSync(join(env.BACKUP_DIR, f)).size }))
     .sort((a, b) => b.file.localeCompare(a.file));
   res.json({ ok: true, count: files.length, files });
@@ -122,7 +128,13 @@ app.get('/backups', (_req, res) => {
 if (cron.validate(env.BACKUP_SCHEDULE)) {
   cron.schedule(env.BACKUP_SCHEDULE, () => {
     logger.info('scheduled backup starting');
-    createBackup().then(pruneOldBackups).catch((e) => logger.error('scheduled backup failed', { detail: e.message }));
+    createBackup()
+      .then(pruneOldBackups)
+      .catch((e) => {
+        const detail = e instanceof Error ? e.message : String(e);
+        logger.error('scheduled backup failed', { detail });
+        void sendAlert(`[CafeOS Backup] Zamanlanmış yedek alınamadı: ${detail}`);
+      });
   });
   logger.info('scheduled backup enabled', { schedule: env.BACKUP_SCHEDULE });
 } else {
