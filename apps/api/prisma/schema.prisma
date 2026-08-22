@@ -175,6 +175,7 @@ model AccessMember {
   telegramBotToken      String?  @map("telegram_bot_token")
   telegramChatId        String?  @map("telegram_chat_id")
   insightmapTenantId    String?  @map("insightmap_tenant_id")
+  insightmapCentralSub  String?  @map("insightmap_central_sub")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 

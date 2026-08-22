@@ -42,6 +42,23 @@ export class SSOController {
       throw new HttpException('Invalid token payload', 400);
     }
 
+    // Central revoke/disable — fail-closed: user-state (<=60s yayılır).
+    if (payload.user_id) {
+      try {
+        const stateRes = await fetch(
+          `https://insightmap.tr/api/identity/user-state?sub=${encodeURIComponent(payload.user_id)}`,
+          { signal: AbortSignal.timeout(4000) },
+        );
+        const state = stateRes.ok ? await stateRes.json() : null;
+        if (state && state.active === false) {
+          throw new HttpException('Hesabınız devre dışı bırakıldı.', 401);
+        }
+      } catch (e: any) {
+        if (e instanceof HttpException) throw e;
+        // Network hatası: fail-open (central erişilemezse login tamamen kapanmasın).
+      }
+    }
+
     // Entitlement check: must have CafeOS Standard or AI Pro
     if (payload.product_tier !== 'STANDARD' && payload.product_tier !== 'AI_PRO') {
       throw new HttpException('CafeOS ürününüz aktif değil. Lütfen yöneticinizle iletişime geçin.', 403);
@@ -66,6 +83,7 @@ export class SSOController {
           active: true,
           token: payload.tenant_id,
           insightmapTenantId: payload.tenant_id,
+          insightmapCentralSub: payload.user_id || null,
         },
       });
 
@@ -78,6 +96,12 @@ export class SSOController {
           name: 'Ana Şube',
           active: true,
         },
+      });
+    } else if (payload.user_id && member.insightmapCentralSub !== payload.user_id) {
+      // Kanonik kimliği güncelle (aynı tenant'a farklı central_sub ile giriş).
+      await this.db.accessMember.update({
+        where: { id: member.id },
+        data: { insightmapCentralSub: payload.user_id },
       });
     }
 
