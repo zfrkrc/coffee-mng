@@ -316,7 +316,7 @@ export class AccessController {
   @Get('me')
   me(@Req() req: Request) {
     const auth = req.headers.authorization ?? '';
-    if (!auth.startsWith('Bearer ')) throw AppError.forbidden('Missing bearer token');
+    if (!auth.startsWith('Bearer ')) throw AppError.unauthorized('Missing bearer token');
     const token = auth.slice('Bearer '.length);
     const payload = verifyAuthToken(token, this.env.JWT_SECRET, this.env.JWT_ISSUER);
     return {

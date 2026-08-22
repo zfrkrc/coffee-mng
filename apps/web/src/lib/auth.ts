@@ -35,6 +35,10 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
   const res = await fetch(input, { ...init, headers });
   if (res.status === 401) {
     clearAuthToken();
+    // Redirect to login (loop-guarded: don't redirect when already on /login).
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
   }
   return res;
 }

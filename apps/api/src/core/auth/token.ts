@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { AppError } from '@cafeos/shared';
 
 export type AuthTokenPayload = {
   sub: string;
@@ -43,17 +44,23 @@ export function signAuthToken(payload: Omit<AuthTokenPayload, 'iat' | 'exp' | 'i
 
 export function verifyAuthToken(token: string, secret: string, issuer: string): AuthTokenPayload {
   const parts = token.split('.');
-  if (parts.length !== 3) throw new Error('Invalid token format');
+  if (parts.length !== 3) throw AppError.unauthorized('Invalid token format');
   const [header, body, signature] = parts;
   const unsigned = `${header}.${body}`;
   const expected = hmac(unsigned, secret);
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('Invalid signature');
+  if (a.length !== b.length || !timingSafeEqual(a, b)) throw AppError.unauthorized('Invalid signature');
 
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as AuthTokenPayload;
+  let payload: AuthTokenPayload;
+  try {
+    payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as AuthTokenPayload;
+  } catch {
+    throw AppError.unauthorized('Invalid token');
+  }
+
   const now = Math.floor(Date.now() / 1000);
-  if (payload.iss !== issuer) throw new Error('Invalid issuer');
-  if (payload.exp <= now) throw new Error('Token expired');
+  if (payload.iss !== issuer) throw AppError.unauthorized('Invalid issuer');
+  if (payload.exp <= now) throw AppError.unauthorized('Token expired');
   return payload;
 }

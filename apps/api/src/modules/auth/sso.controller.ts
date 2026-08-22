@@ -5,10 +5,9 @@ import { PRISMA } from '../../core/database/prisma.module';
 import { signAuthToken, verifyAuthToken } from '../../core/auth/token';
 import { Inject } from '@nestjs/common';
 
-// Shared secret with InsightMap (env).
-const SHARED_SECRET = process.env.CAFEOS_SSO_SECRET || 'cafeos-sso-shared-secret-change-me';
+// Shared secret with InsightMap (env) — fail-closed: NO default fallback.
+const SHARED_SECRET = process.env.CAFEOS_SSO_SECRET || '';
 const SSO_ISSUER = 'insightmap.tr';
-const TTL = 300; // 5 min
 
 interface InsightMapSSOPayload {
   user_id: string;
@@ -29,6 +28,7 @@ export class SSOController {
   @Post('sso')
   @HttpCode(200)
   async ssoHandoff(@Body() body: { token: string }) {
+    if (!SHARED_SECRET) throw new HttpException('SSO secret not configured', 500);
     if (!body.token) throw new HttpException('Token required', 400);
 
     let payload: InsightMapSSOPayload;
@@ -113,7 +113,11 @@ export class SSOController {
     };
     const cafeRole = roleMap[payload.tenant_role] || 'viewer';
 
-    // Issue CafeOS auth token
+    // Issue CafeOS auth token — signed with CafeOS JWT secret + issuer
+    // (NOT the SSO shared secret), so the rest of the API can verify it.
+    const jwtSecret = process.env.JWT_SECRET || '';
+    const jwtIssuer = process.env.JWT_ISSUER || 'cafeos-edge';
+    const accessTtl = parseInt(process.env.JWT_ACCESS_TTL_SECONDS || '43200', 10);
     const cafeToken = signAuthToken(
       {
         sub: member.id,
@@ -123,15 +127,15 @@ export class SSOController {
         domain: member.domain,
         name: member.displayName,
       },
-      SHARED_SECRET,
-      'cafeos',
-      TTL,
+      jwtSecret,
+      jwtIssuer,
+      accessTtl,
     );
 
     return {
       access_token: cafeToken,
       token_type: 'bearer',
-      expires_in: TTL,
+      expires_in: accessTtl,
       member: {
         id: member.id,
         slug: member.slug,
