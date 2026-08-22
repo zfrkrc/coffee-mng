@@ -229,9 +229,9 @@ model AccessStaff {
 
 // Domain-level menu items (per member+branch). Seed edilir; upsert/deletable.
 model CafeMenuItem {
-  id            String   @id
+  id            String
   memberId      String   @map("member_id")
-  branchSlug    String?  @map("branch_slug")
+  branchSlug    String   @default("") @map("branch_slug")
   name          String
   category      String   @default("coffee")
   priceCents    Int      @map("price_cents")
@@ -240,7 +240,7 @@ model CafeMenuItem {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  @@unique([memberId, branchSlug, id])
+  @@id([memberId, branchSlug, id])
   @@index([memberId, branchSlug])
   @@map("cafe_menu_items")
 }
@@ -249,7 +249,7 @@ model CafeMenuItem {
 model CafeTable {
   id          String   @id
   memberId    String   @map("member_id")
-  branchSlug  String?  @map("branch_slug")
+  branchSlug  String   @default("") @map("branch_slug")
   code        String
   name        String
   capacity    Int      @default(4)
@@ -266,7 +266,7 @@ model CafeTable {
 model CafeInventory {
   id          String   @id
   memberId    String   @map("member_id")
-  branchSlug  String?  @map("branch_slug")
+  branchSlug  String   @default("") @map("branch_slug")
   menuItemId  String   @map("menu_item_id")
   productName String   @map("product_name")
   unit        String   @default("pcs")
