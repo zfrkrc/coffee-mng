@@ -126,7 +126,9 @@ export default function Landing({ initialIsWaycoffee }: { initialIsWaycoffee: bo
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               {isWaycoffee ? (
                 <>
-                  <a href="/m?branch=ayranci" className="rounded-full bg-brand-600 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700 hover:shadow-xl">QR Menüyü Aç</a>
+                  {WAYCOFFEE_BRANCHES.map((b) => (
+                    <a key={b.slug} href={`/m?branch=${b.slug}`} className="rounded-full bg-brand-600 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700 hover:shadow-xl">{b.name} Menüsü</a>
+                  ))}
                   <a href="#subeler" className="rounded-full border border-gray-300 px-8 py-3 text-base font-medium text-gray-700 hover:bg-gray-100 dark:border-slate-700 dark:text-gray-300 dark:hover:bg-slate-800">Şubelerimiz</a>
                 </>
               ) : (
