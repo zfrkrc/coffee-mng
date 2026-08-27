@@ -55,9 +55,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   CLOUD_API_URL: z.string().default(''),
   CLOUD_SYNC_ENABLED: bool,
   ENABLE_SWAGGER: bool,
-  /** Public satış sitesi teklif (lead) bildirimleri — boşsa bildirim kapatılır. */
-  TELEGRAM_BOT_TOKEN: z.string().optional().default(''),
-  TELEGRAM_LEAD_CHAT_ID: z.string().optional().default(''),
+  /** zaferkaraca.net Teklif Sihirbazı — CafeOS teklif talepleri buraya iletilir. */
+  QUOTE_SERVICE_URL: z.string().default('https://zaferkaraca.net'),
 });
 
 /** Schema for the Next.js web app. */

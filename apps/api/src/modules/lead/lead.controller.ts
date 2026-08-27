@@ -65,12 +65,16 @@ export class LeadController {
     }
     rateLimit.set(ip, now);
 
-    await this.sendTelegram({ name, phone, business, branch, pkg, note });
+    await this.sendToQuoteService({ name, phone, business, branch, pkg, note });
 
     return { ok: true };
   }
 
-  private async sendTelegram(lead: {
+  /**
+   * CafeOS teklif talebini zaferkaraca.net Teklif Sihirbazı'na iletir.
+   * Sihirbaz otomatik e-posta (sözleşme PDF + detay) gönderir — ayrı mail/Telegram YOK.
+   */
+  private async sendToQuoteService(lead: {
     name: string;
     phone: string;
     business: string;
@@ -78,35 +82,38 @@ export class LeadController {
     pkg: string;
     note: string;
   }): Promise<void> {
-    const token = this.env.TELEGRAM_BOT_TOKEN;
-    const chatId = this.env.TELEGRAM_LEAD_CHAT_ID;
-    if (!token || !chatId) return; // bildirim kapalı (dev)
-
-    const now = new Intl.DateTimeFormat('tr-TR', {
-      timeZone: 'Europe/Istanbul',
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date());
-
-    const text = [
-      '🔔 Yeni CafeOS Teklif Talebi',
-      `👤 ${lead.name}  ·  📞 ${lead.phone}`,
-      `🏪 ${lead.business} · Şube: ${lead.branch}`,
-      `📦 Paket: ${lead.pkg}`,
-      lead.note ? `📝 ${lead.note}` : null,
-      `🕒 ${now}`,
-    ]
-      .filter((line): line is string => line !== null)
-      .join('\n');
+    const base = this.env.QUOTE_SERVICE_URL.replace(/\/$/, '');
+    const noteParts = [
+      `CafeOS Teklif Talebi — İşletme: ${lead.business}`,
+      `Şube sayısı: ${lead.branch}`,
+      `Paket: ${lead.pkg}`,
+    ];
+    if (lead.note) noteParts.push(`Not: ${lead.note}`);
 
     try {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      await fetch(`${base}/api/quote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text }),
+        body: JSON.stringify({
+          name: lead.name,
+          email: 'cafeos-lead@zaferkaraca.net',
+          phone: lead.phone,
+          notes: noteParts.join('\n'),
+          items: [{
+            service_name: `CafeOS ${lead.pkg}`,
+            service_count: 1,
+            timeline: '-',
+            estimated_total: 0,
+            currency: 'TRY',
+          }],
+          extras: [],
+          estimated_total: 0,
+          currency: 'TRY',
+          agreement_accepted: false,
+        }),
       });
     } catch {
-      // Telegram erişilemezse lead kaybolmasın — hatayı yutup ok dön (fail-open).
+      // Teklif Sihirbazı erişilemezse lead kaybolmasın — hatayı yutup ok dön (fail-open).
     }
   }
 }
