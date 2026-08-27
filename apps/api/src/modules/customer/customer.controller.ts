@@ -144,15 +144,15 @@ export class CustomerController {
   }
 
   @Post('admin/menu')
-  upsertMenu(@Body() body: UpsertMenuItemDto, @Req() req: Request) {
+  async upsertMenu(@Body() body: UpsertMenuItemDto, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.upsertMenuItem(this.getRequestDomain(req), body);
+    return await this.customer.upsertMenuItem(this.getRequestDomain(req), body);
   }
 
   @Post('admin/menu/:itemId/delete')
-  deleteMenu(@Param('itemId') itemId: string, @Req() req: Request) {
+  async deleteMenu(@Param('itemId') itemId: string, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    this.customer.deleteMenuItem(this.getRequestDomain(req), itemId);
+    await this.customer.deleteMenuItem(this.getRequestDomain(req), itemId);
     return { ok: true };
   }
 
@@ -163,40 +163,40 @@ export class CustomerController {
   }
 
   @Post('admin/inventory/:productId/adjust')
-  adjustInventory(@Param('productId') productId: string, @Body() body: AdjustInventoryDto, @Req() req: Request) {
+  async adjustInventory(@Param('productId') productId: string, @Body() body: AdjustInventoryDto, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.adjustInventory(this.getRequestDomain(req), productId, body.delta);
+    return await this.customer.adjustInventory(this.getRequestDomain(req), productId, body.delta);
   }
 
   @Get('admin/overview')
-  overview(@Req() req: Request) {
+  async overview(@Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.getOverview(this.getRequestDomain(req));
+    return await this.customer.getOverview(this.getRequestDomain(req));
   }
 
   @Get('admin/reports/daily')
-  dailyReport(@Req() req: Request) {
+  async dailyReport(@Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.getDailyReport(this.getRequestDomain(req));
+    return await this.customer.getDailyReport(this.getRequestDomain(req));
   }
 
   @Post('admin/tables')
-  upsertTable(@Body() body: UpsertTableDto, @Req() req: Request) {
+  async upsertTable(@Body() body: UpsertTableDto, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return this.customer.upsertTable(this.getRequestDomain(req), body);
+    return await this.customer.upsertTable(this.getRequestDomain(req), body);
   }
 
   @Post('admin/tables/:tableCode/delete')
-  deleteTable(@Param('tableCode') tableCode: string, @Req() req: Request) {
+  async deleteTable(@Param('tableCode') tableCode: string, @Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    this.customer.deleteTable(this.getRequestDomain(req), tableCode);
+    await this.customer.deleteTable(this.getRequestDomain(req), tableCode);
     return { ok: true };
   }
 
   @Post('orders')
   async createOrder(@Body() body: CreateOrderDto, @Req() req: Request) {
     const domain = this.getRequestDomain(req);
-    const order = this.customer.createOrder(domain, body);
+    const order = await this.customer.createOrder(domain, body);
     await this.telegram.notifyByDomain(
       domain,
       `<b>Yeni Siparis</b>\nMasa: ${order.tableName} (${order.tableCode})\nTutar: ${Math.round(order.totalCents / 100)} TL\nNo: ${order.id.slice(0, 8)}`,
@@ -214,7 +214,7 @@ export class CustomerController {
   async advanceOrder(@Param('orderId') orderId: string, @Req() req: Request) {
     this.requireService(req, 'kitchen-board');
     const domain = this.getRequestDomain(req);
-    const order = this.customer.advanceOrder(domain, orderId);
+    const order = await this.customer.advanceOrder(domain, orderId);
     await this.telegram.notifyByDomain(
       domain,
       `<b>Siparis Durumu</b>\nMasa: ${order.tableName} (${order.tableCode})\nDurum: ${order.status}\nNo: ${order.id.slice(0, 8)}`,
@@ -226,31 +226,31 @@ export class CustomerController {
   async editOrder(@Param('orderId') orderId: string, @Body() body: UpdateOrderDto, @Req() req: Request) {
     this.requireService(req, 'kitchen-board');
     const domain = this.getRequestDomain(req);
-    const order = this.customer.updateOrder(domain, orderId, body);
+    const order = await this.customer.updateOrder(domain, orderId, body);
     return order;
   }
 
   @Get('orders/:orderId')
-  getOrder(@Param('orderId') orderId: string, @Req() req: Request) {
-    return this.customer.getOrder(this.getRequestDomain(req), orderId);
+  async getOrder(@Param('orderId') orderId: string, @Req() req: Request) {
+    return await this.customer.getOrder(this.getRequestDomain(req), orderId);
   }
 
   @Get('account/:tableCode')
-  getAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
-    const account = this.customer.getAccountByTable(this.getRequestDomain(req), tableCode);
+  async getAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
+    const account = await this.customer.getAccountByTable(this.getRequestDomain(req), tableCode);
     if (!account) throw AppError.notFound('No open account for this table');
     return account;
   }
 
   @Post('account/:tableCode/open')
-  openAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
-    return this.customer.openAccount(this.getRequestDomain(req), tableCode);
+  async openAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
+    return await this.customer.openAccount(this.getRequestDomain(req), tableCode);
   }
 
   @Post('account/:tableCode/request')
   async requestAccount(@Param('tableCode') tableCode: string, @Req() req: Request) {
     const domain = this.getRequestDomain(req);
-    const account = this.customer.requestAccount(domain, tableCode);
+    const account = await this.customer.requestAccount(domain, tableCode);
     await this.telegram.notifyByDomain(
       domain,
       `<b>Hesap Iste</b>\nMasa: ${account.tableName} (${account.tableCode})\nTutar: ${Math.round(account.totalCents / 100)} TL`,
@@ -265,7 +265,7 @@ export class CustomerController {
     @Req() req: Request,
   ) {
     const domain = this.getRequestDomain(req);
-    const account = this.customer.closeAccount(domain, tableCode, body.paymentMethod);
+    const account = await this.customer.closeAccount(domain, tableCode, body.paymentMethod);
     await this.telegram.notifyByDomain(
       domain,
       `<b>Hesap Kapandi</b>\nMasa: ${account.tableName} (${account.tableCode})\nTutar: ${Math.round(account.totalCents / 100)} TL\nOdeme: ${body.paymentMethod === 'cash' ? 'Nakit' : 'Kart'}`,
@@ -341,7 +341,7 @@ export class CustomerController {
   async qr(@Param('tableCode') tableCode: string, @Req() req: Request, @Res() res: Response) {
     const domain = this.getRequestDomain(req);
     const branch = this.getBranchSlug(req);
-    const table = this.customer.tableByCode(domain, tableCode.toUpperCase());
+    const table = await this.customer.tableByCode(domain, tableCode.toUpperCase());
     const proto = req.headers['x-forwarded-proto']?.toString() ?? req.protocol;
     const host = req.headers['x-forwarded-host']?.toString() ?? req.get('host') ?? 'localhost:3003';
     const branchQuery = branch ? `&branch=${encodeURIComponent(branch)}` : '';
