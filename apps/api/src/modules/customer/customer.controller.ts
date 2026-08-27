@@ -128,19 +128,19 @@ export class CustomerController {
   }
 
   @Get('tables')
-  tables(@Req() req: Request) {
+  async tables(@Req() req: Request) {
     const domain = this.getRequestDomain(req);
     const branchSlug = this.getBranchSlug(req);
     const proto = req.headers['x-forwarded-proto']?.toString() ?? req.protocol;
     const host = req.headers['x-forwarded-host']?.toString() ?? req.get('host') ?? 'localhost:3003';
     const baseUrl = `${proto}://${host}`;
-    return { items: this.customer.getTables(domain, baseUrl, branchSlug) };
+    return { items: await this.customer.getTables(domain, baseUrl, branchSlug) };
   }
 
   @Get('menu')
-  menu(@Req() req: Request) {
+  async menu(@Req() req: Request) {
     const domain = this.getRequestDomain(req);
-    return { items: this.customer.getMenu(domain) };
+    return { items: await this.customer.getMenu(domain) };
   }
 
   @Post('admin/menu')
@@ -157,9 +157,9 @@ export class CustomerController {
   }
 
   @Get('admin/inventory')
-  inventory(@Req() req: Request) {
+  async inventory(@Req() req: Request) {
     this.requireService(req, 'ops-dashboard');
-    return { items: this.customer.getInventory(this.getRequestDomain(req)) };
+    return { items: await this.customer.getInventory(this.getRequestDomain(req)) };
   }
 
   @Post('admin/inventory/:productId/adjust')
@@ -205,9 +205,9 @@ export class CustomerController {
   }
 
   @Get('kitchen/orders')
-  kitchenOrders(@Req() req: Request) {
+  async kitchenOrders(@Req() req: Request) {
     this.requireService(req, 'kitchen-board');
-    return { items: this.customer.getKitchenOrders(this.getRequestDomain(req)) };
+    return { items: await this.customer.getKitchenOrders(this.getRequestDomain(req)) };
   }
 
   @Post('kitchen/orders/:orderId/advance')
@@ -274,8 +274,8 @@ export class CustomerController {
   }
 
   @Get('accounts')
-  accounts(@Req() req: Request) {
-    return { items: this.customer.getTableAccounts(this.getRequestDomain(req)) };
+  async accounts(@Req() req: Request) {
+    return { items: await this.customer.getTableAccounts(this.getRequestDomain(req)) };
   }
 
   private requireService(req: Request, service: string): void {
