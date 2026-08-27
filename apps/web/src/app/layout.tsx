@@ -4,8 +4,8 @@ import { PWARegister } from '@/components/pwa-register';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CafeOS Edge',
-  description: 'Offline-first cafe management platform',
+  title: 'CafeOS Edge — Kafe Yönetim Platformu',
+  description: 'Offline-first kafe yönetim platformu: QR menü, masa hesap takibi, mutfak ekranı (KDS), günlük kapanış ve AI raporları.',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: '/icon.svg',
+  },
+  openGraph: {
+    title: 'CafeOS Edge — Kafe Yönetim Platformu',
+    description: 'QR menü, masa hesap takibi, mutfak ekranı ve AI raporları — hepsi tek platformda.',
+    type: 'website',
+    locale: 'tr_TR',
   },
 };
 
