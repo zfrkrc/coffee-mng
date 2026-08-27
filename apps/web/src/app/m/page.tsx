@@ -44,14 +44,40 @@ type ApiOrderResponse = {
   totalCents: number;
 };
 
-const MENU_FALLBACK_IMAGE = '/menu-placeholder.svg';
-
 const CATEGORY_LABEL: Record<MenuItem['category'], string> = {
   coffee: 'Kahve',
   tea: 'Çay',
   food: 'Yiyecek',
   dessert: 'Tatlı',
 };
+
+const CATEGORY_ICON: Record<MenuItem['category'], string> = {
+  coffee: '☕',
+  tea: '🍵',
+  food: '🍔',
+  dessert: '🍰',
+};
+
+function MenuImage({ item }: { item: MenuItem }) {
+  const [failed, setFailed] = useState(false);
+  if (item.imageUrl && !failed) {
+    return (
+      <img
+        src={item.imageUrl}
+        alt={item.name}
+        className="h-28 w-full object-cover sm:h-32"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div className="flex h-28 w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-teal-800 to-emerald-900 sm:h-32">
+      <span className="text-2xl">{CATEGORY_ICON[item.category]}</span>
+      <span className="text-lg font-bold text-emerald-50">{item.name.charAt(0).toUpperCase()}</span>
+    </div>
+  );
+}
 
 export default function CustomerPage() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -295,16 +321,7 @@ export default function CustomerPage() {
               )}
               {filtered.map((item) => (
                 <article key={item.id} className="surface-card overflow-hidden rounded-2xl p-0">
-                  <img
-                    src={item.imageUrl || MENU_FALLBACK_IMAGE}
-                    alt={item.name}
-                    className="h-28 w-full object-cover sm:h-32"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = MENU_FALLBACK_IMAGE;
-                    }}
-                  />
+                  <MenuImage item={item} />
                   <div className="p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     {CATEGORY_LABEL[item.category]}

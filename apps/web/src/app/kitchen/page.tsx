@@ -32,6 +32,13 @@ export default function KitchenPage() {
   const [branchSlug, setBranchSlug] = useState<string | null>(null);
   const [authBlocked, setAuthBlocked] = useState(false);
   const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    // Bekleme süresi dakikada bir güncellenir (saniyelik tick gerekmez).
+    const t = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     setBranchSlug(new URLSearchParams(window.location.search).get('branch'));
@@ -63,7 +70,11 @@ export default function KitchenPage() {
         throw new Error(message);
       }
       const json = (await res.json()) as { items: KitchenOrder[] };
-      setOrders(json.items);
+      // Defensive dedupe (id bazında) + FIFO sıralama (en eski en üstte).
+      const seen = new Set<string>();
+      const unique = json.items.filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)));
+      unique.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      setOrders(unique);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Kitchen list unavailable');
@@ -172,6 +183,7 @@ export default function KitchenPage() {
             title="Yeni"
             accent="bg-sky-600"
             items={grouped.received}
+            now={now}
             onAdvance={advanceOrder}
             onStartEdit={startEdit}
             editingOrderId={editingOrderId}
@@ -189,6 +201,7 @@ export default function KitchenPage() {
             title="Hazirlaniyor"
             accent="bg-amber-600"
             items={grouped.preparing}
+            now={now}
             onAdvance={advanceOrder}
             onStartEdit={startEdit}
             editingOrderId={editingOrderId}
@@ -206,6 +219,7 @@ export default function KitchenPage() {
             title="Hazir"
             accent="bg-emerald-700"
             items={grouped.ready}
+            now={now}
             onAdvance={advanceOrder}
             onStartEdit={startEdit}
             editingOrderId={editingOrderId}
@@ -229,6 +243,7 @@ function StageColumn({
   title,
   accent,
   items,
+  now,
   onAdvance,
   onStartEdit,
   editingOrderId,
@@ -245,6 +260,7 @@ function StageColumn({
   title: string;
   accent: string;
   items: KitchenOrder[];
+  now: number;
   onAdvance: (orderId: string) => Promise<void>;
   onStartEdit: (order: KitchenOrder) => void;
   editingOrderId: string | null;
@@ -259,19 +275,23 @@ function StageColumn({
   onCancelEdit: () => void;
 }) {
   return (
-    <section className="surface-card rounded-2xl p-4">
+    <section className="surface-card flex flex-col rounded-2xl p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{title}</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{title} <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">{items.length}</span></h2>
         <span className={`h-2.5 w-2.5 rounded-full ${accent}`} />
       </div>
       <div className="space-y-3">
         {items.length === 0 && <p className="text-sm text-slate-500">Bos</p>}
-        {items.map((order) => (
-          <article key={order.id} className="rounded-xl border border-slate-200/70 p-3 dark:border-slate-700/70">
+        {items.map((order) => {
+          const min = Math.max(0, Math.round((now - new Date(order.createdAt).getTime()) / 60000));
+          const tone = min < 5 ? 'border-slate-200/70 dark:border-slate-700/70' : min < 10 ? 'border-amber-400' : 'border-red-500 animate-pulse';
+          return (
+          <article key={order.id} className={`rounded-xl border p-3 ${tone}`}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">{order.tableName}</p>
               <p className="text-xs text-slate-500">#{order.id.slice(0, 8)}</p>
             </div>
+            <p className={`mt-0.5 text-xs font-medium ${min < 5 ? 'text-slate-400' : min < 10 ? 'text-amber-600' : 'text-red-500'}`}>⏱ {min} dk</p>
             <ul className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300">
               {order.items.map((item, idx) => (
                 <li key={`${order.id}-${idx}`}>
@@ -338,7 +358,8 @@ function StageColumn({
               </div>
             )}
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
