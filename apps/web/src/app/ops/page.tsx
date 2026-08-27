@@ -63,6 +63,15 @@ type Account = {
 
 const MENU_FALLBACK_IMAGE = '/menu-placeholder.svg';
 
+function slugify(value: string): string {
+  const tr = { ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', Ç: 'c', Ğ: 'g', İ: 'i', Ö: 'o', Ş: 's', Ü: 'u' } as Record<string, string>;
+  return value
+    .toLowerCase()
+    .replace(/[çğıöşüÇĞİÖŞÜ]/g, (c) => tr[c] ?? c)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export default function OpsPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -76,6 +85,7 @@ export default function OpsPage() {
   const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({ id: '', name: '', category: 'coffee', priceTl: '0', note: '', imageUrl: '' });
+  const [idEdited, setIdEdited] = useState(false);
   const [tableForm, setTableForm] = useState({ code: '', name: '', capacity: '2' });
   const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
 
@@ -254,8 +264,11 @@ export default function OpsPage() {
           <section id="menu" className="surface-card rounded-2xl p-4">
             <h2 className="mb-3 text-lg font-semibold">Menü düzenleme</h2>
             <div className="mb-4 grid gap-2 sm:grid-cols-2">
-              <input value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} placeholder="id (latte-large)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
-              <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="ürün adı" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+              <div className="flex items-center gap-2">
+                <input value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} placeholder="id (latte-large)" readOnly={!idEdited} className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                <button type="button" onClick={() => setIdEdited((v) => !v)} className="rounded-lg border border-slate-300 px-2 py-2 text-xs dark:border-slate-700">{idEdited ? 'otomatik' : 'düzenle'}</button>
+              </div>
+              <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value, id: idEdited ? f.id : slugify(e.target.value) }))} placeholder="ürün adı" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
               <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
                 <option value="coffee">Kahve</option>
                 <option value="tea">Cay</option>
@@ -302,6 +315,13 @@ export default function OpsPage() {
               </div>
             )}
             <div className="space-y-2">
+              {inventory.length === 0 && (
+                <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center dark:border-slate-700">
+                  <p className="text-2xl">📦</p>
+                  <p className="mt-1 text-sm text-slate-500">Henüz hammadde eklenmemiş.</p>
+                  <a href={`/ops/stock-lab${branchQuery}`} className="mt-2 inline-block text-sm font-medium text-emerald-700 underline">Reçete Lab'a git</a>
+                </div>
+              )}
               {inventory.map((item) => (
                 <div key={item.id} className="rounded-lg border border-slate-200 p-2 dark:border-slate-700">
                   <div className="flex items-center justify-between text-sm">
@@ -365,7 +385,13 @@ export default function OpsPage() {
         <section id="reports" className="surface-card mt-6 rounded-2xl p-4">
           <h2 className="mb-3 text-lg font-semibold">Günlük rapor</h2>
           {!report && <p className="text-sm text-slate-500">Rapor bekleniyor...</p>}
-          {report && (
+          {report && report.orderCount === 0 && (
+            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center dark:border-slate-700">
+              <p className="text-2xl">📊</p>
+              <p className="mt-1 text-sm text-slate-500">Bugün henüz sipariş yok.</p>
+            </div>
+          )}
+          {report && report.orderCount > 0 && (
             <>
               <div className="grid gap-2 sm:grid-cols-3">
                 <div className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
