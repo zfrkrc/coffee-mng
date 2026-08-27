@@ -4,6 +4,9 @@ import { AppError, uuidv7 } from '@cafeos/shared';
 import { computeOrderTotals } from '@cafeos/domain';
 import { PrismaClient } from '@prisma/client';
 import { PRISMA } from '../../core/database/prisma.module';
+import { API_ENV } from '../../core/config/config.module';
+import type { ApiEnv } from '@cafeos/config';
+import { signTableToken, verifyTableToken } from '../../core/auth/table-token';
 import type {
   AccountView, CafeTable, CustomerOrderLine, CustomerOrderView,
   DailyReport, InventoryItem, MenuItem, OpsOverview, PaymentMethod,
@@ -12,7 +15,7 @@ import type {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export interface CreateCustomerOrderInput { tableCode: string; items: Array<{ productId: string; quantity: number }>; }
+export interface CreateCustomerOrderInput { tableCode: string; items: Array<{ productId: string; quantity: number }>; clientOrderId?: string; tableToken?: string; }
 export interface UpdateCustomerOrderInput { tableCode: string; items: Array<{ productId: string; quantity: number }>; }
 export interface MenuItemUpsertInput { id: string; name: string; category: MenuItem['category']; priceCents: number; note: string; imageUrl?: string; }
 export interface UpsertTableInput { id?: string; code: string; name: string; capacity: number; }
@@ -21,7 +24,7 @@ const STATUS_FLOW: CustomerOrderView['status'][] = ['received', 'preparing', 're
 
 @Injectable()
 export class CustomerService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, @Inject(API_ENV) private readonly env: ApiEnv) {}
 
   // ── helpers ──────────────────────────────────────────────────────────────
   private resolveMember(domain: string): { memberId: string; branchSlug: string } {
@@ -124,7 +127,7 @@ export class CustomerService {
     const bq = slug ? `?branch=${encodeURIComponent(slug)}` : '';
     return rows.map((t) => ({
       id: t.id, code: t.code, name: t.name, capacity: t.capacity,
-      customerUrl: `${baseUrl}/m?table=${t.code}${slug ? `&branch=${encodeURIComponent(slug)}` : ''}`,
+      customerUrl: `${baseUrl}/m?table=${t.code}${slug ? `&branch=${encodeURIComponent(slug)}` : ''}&t=${signTableToken(t.code, slug ?? '', this.env.JWT_SECRET)}`,
       qrImageUrl: `${baseUrl}/api/customer/qr/${t.code}${bq}`,
     }));
   }
@@ -214,6 +217,24 @@ export class CustomerService {
     const table = await this.tableByCode(domain, tableCode);
     if (input.items.length === 0) throw AppError.validation('At least one item is required');
 
+    // Masa doğrulama: QR token'ı varsa siparişi token'daki masaya yaz;
+    // elle değiştirilmiş tableCode (yetkisiz masa) 403 ile reddedilir.
+    if (input.tableToken) {
+      const decoded = verifyTableToken(input.tableToken, this.env.JWT_SECRET);
+      if (!decoded) throw AppError.forbidden('Geçersiz veya süresi dolmuş masa tokenı');
+      if (decoded.table !== tableCode) throw AppError.forbidden('Bu masa için yetkiniz yok');
+    }
+
+    // İdempotency: aynı clientOrderId ile tekrar gönderilirse yeni sipariş AÇMA,
+    // mevcut siparişi dön (çift tıklama / retry duplicate üretmesin).
+    if (input.clientOrderId) {
+      const existing = await this.db.order.findUnique({
+        where: { clientOrderId: input.clientOrderId },
+        include: { items: true },
+      });
+      if (existing) return this.toView(existing);
+    }
+
     const menu = await this.getMenu(domain);
     const lines = input.items.map((item) => {
       if (!Number.isInteger(item.quantity) || item.quantity <= 0) throw AppError.validation('Quantity must be positive');
@@ -234,6 +255,7 @@ export class CustomerService {
       data: {
         id: uuidv7(), memberId, branchSlug: branchSlug ?? '', dayShiftId: shift.id,
         tableCode: table.code, tableName: table.name, status: 'received', totalCents: totals.totalCents,
+        clientOrderId: input.clientOrderId || null,
         items: { create: lines.map((l) => ({ id: uuidv7(), name: l.name, quantity: l.quantity, unitPriceCents: l.unitPriceCents, lineTotalCents: l.lineTotalCents })) },
       },
       include: { items: true },

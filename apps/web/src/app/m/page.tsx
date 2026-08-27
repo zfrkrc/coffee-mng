@@ -67,6 +67,8 @@ export default function CustomerPage() {
   const [accountStatus, setAccountStatus] = useState<null | 'requested' | 'open' | 'paid'>(null);
   const [accountTotal, setAccountTotal] = useState(0);
   const [accountBusy, setAccountBusy] = useState(false);
+  const [orderBusy, setOrderBusy] = useState(false);
+  const [tableLocked, setTableLocked] = useState(false);
 
   useEffect(() => {
     void fetchMe().then((me) => {
@@ -78,6 +80,8 @@ export default function CustomerPage() {
   useEffect(() => {
     const fromQuery = new URLSearchParams(window.location.search).get('table')?.toUpperCase();
     if (fromQuery) setTableCode(fromQuery);
+    // QR ile gelindiyse masa kilitli — misafir başka masa seçemesin.
+    setTableLocked(new URLSearchParams(window.location.search).has('table'));
   }, []);
 
   useEffect(() => {
@@ -176,13 +180,16 @@ export default function CustomerPage() {
   }
 
   async function submitOrder() {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || orderBusy) return;
+    setOrderBusy(true);
 
     try {
       const payload = {
         tableCode,
         branchSlug: new URLSearchParams(window.location.search).get('branch') ?? undefined,
         items: cart.map((line) => ({ productId: line.item.id, quantity: line.qty })),
+        clientOrderId: crypto.randomUUID(),
+        tableToken: new URLSearchParams(window.location.search).get('t') ?? undefined,
       };
       const res = await fetch('/api/customer/orders', {
         method: 'POST',
@@ -197,6 +204,8 @@ export default function CustomerPage() {
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Order failed');
+    } finally {
+      setOrderBusy(false);
     }
   }
 
@@ -232,17 +241,21 @@ export default function CustomerPage() {
             <span className="rounded-full bg-white/20 px-3 py-1">
               Konum: {selectedTable?.name ?? tableCode}
             </span>
-            <select
-              value={tableCode}
-              onChange={(e) => setTableCode(e.target.value)}
-              className="rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-white"
-            >
-              {tables.map((t) => (
-                <option key={t.id} value={t.code} className="text-slate-900">
-                  {t.name} ({t.capacity} kisi)
-                </option>
-              ))}
-            </select>
+            {tableLocked ? (
+              <span className="rounded-full bg-white/20 px-3 py-1" title="Masa QR ile sabitlendi">🔒 {selectedTable?.name ?? tableCode}</span>
+            ) : (
+              <select
+                value={tableCode}
+                onChange={(e) => setTableCode(e.target.value)}
+                className="rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-white"
+              >
+                {tables.map((t) => (
+                  <option key={t.id} value={t.code} className="text-slate-900">
+                    {t.name} ({t.capacity} kisi)
+                  </option>
+                ))}
+              </select>
+            )}
             </div>
           </div>
 
@@ -351,10 +364,10 @@ export default function CustomerPage() {
 
             <button
               onClick={submitOrder}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || orderBusy}
               className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              Siparisi Gonder
+              {orderBusy ? 'Gonderiliyor...' : 'Siparisi Gonder'}
             </button>
 
             <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-3 text-sm dark:border-slate-700">

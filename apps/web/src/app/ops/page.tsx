@@ -73,6 +73,7 @@ export default function OpsPage() {
   const [accountPayMethod, setAccountPayMethod] = useState<Record<string, 'cash' | 'card'>>({});
   const [error, setError] = useState<string | null>(null);
   const [branchSlug, setBranchSlug] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({ id: '', name: '', category: 'coffee', priceTl: '0', note: '', imageUrl: '' });
   const [tableForm, setTableForm] = useState({ code: '', name: '', capacity: '2' });
@@ -83,6 +84,7 @@ export default function OpsPage() {
   }, []);
 
   async function loadAll() {
+    setLoading(true);
     try {
       const branch = new URLSearchParams(window.location.search).get('branch');
       const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
@@ -114,6 +116,8 @@ export default function OpsPage() {
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ops failed');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -239,11 +243,11 @@ export default function OpsPage() {
         {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard title="Menü" value={`${overview?.menuCount ?? 0}`} />
-          <KpiCard title="Masa" value={`${overview?.tableCount ?? 0}`} />
-          <KpiCard title="Açık sipariş" value={`${overview?.openOrders ?? 0}`} />
-          <KpiCard title="Düşük stok" value={`${overview?.lowStockCount ?? 0}`} tone="warn" />
-          <KpiCard title="Hazır ciro" value={`${Math.round((overview?.totalRevenueCents ?? 0) / 100)} TL`} tone="good" />
+          <KpiCard title="Menü" value={`${overview?.menuCount ?? 0}`} loading={loading} />
+          <KpiCard title="Masa" value={`${overview?.tableCount ?? 0}`} loading={loading} />
+          <KpiCard title="Açık sipariş" value={`${overview?.openOrders ?? 0}`} loading={loading} />
+          <KpiCard title="Düşük stok" value={`${overview?.lowStockCount ?? 0}`} tone="warn" loading={loading} />
+          <KpiCard title="Hazır ciro" value={`${Math.round((overview?.totalRevenueCents ?? 0) / 100)} TL`} tone="good" loading={loading} hint="Bugün hazırlanmış (hazır durumuna geçmiş) ama henüz tahsil edilmemiş sipariş tutarı" />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
@@ -474,11 +478,15 @@ export default function OpsPage() {
   );
 }
 
-function KpiCard({ title, value, tone = 'default' }: { title: string; value: string; tone?: 'default' | 'warn' | 'good' }) {
+function KpiCard({ title, value, tone = 'default', loading = false, hint }: { title: string; value: string; tone?: 'default' | 'warn' | 'good'; loading?: boolean; hint?: string }) {
   return (
-    <div className="surface-card rounded-xl p-3">
+    <div className="surface-card rounded-xl p-3" title={hint}>
       <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</p>
-      <p className={`mt-1 text-xl font-bold ${tone === 'warn' ? 'text-amber-600' : tone === 'good' ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>{value}</p>
+      {loading ? (
+        <div className="mt-1 h-6 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+      ) : (
+        <p className={`mt-1 text-xl font-bold ${tone === 'warn' ? 'text-amber-600' : tone === 'good' ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>{value}</p>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import QRCode from 'qrcode';
 import { API_ENV } from '../../core/config/config.module';
 import type { ApiEnv } from '@cafeos/config';
 import { verifyAuthToken } from '../../core/auth/token';
+import { signTableToken } from '../../core/auth/table-token';
 import { AppError } from '@cafeos/shared';
 import { PRISMA } from '../../core/database/prisma.module';
 import type { PrismaClient } from '@prisma/client';
@@ -35,6 +36,14 @@ class CreateOrderDto {
   @IsOptional()
   @IsString()
   branchSlug?: string;
+
+  @IsOptional()
+  @IsString()
+  clientOrderId?: string;
+
+  @IsOptional()
+  @IsString()
+  tableToken?: string;
 }
 
 class UpdateOrderDto {
@@ -348,7 +357,8 @@ export class CustomerController {
     const proto = req.headers['x-forwarded-proto']?.toString() ?? req.protocol;
     const host = req.headers['x-forwarded-host']?.toString() ?? req.get('host') ?? 'localhost:3003';
     const branchQuery = branch ? `&branch=${encodeURIComponent(branch)}` : '';
-    const target = `${proto}://${host}/m?table=${table.code}${branchQuery}`;
+    const tableToken = signTableToken(table.code, branch ?? '', this.env.JWT_SECRET);
+    const target = `${proto}://${host}/m?table=${table.code}${branchQuery}&t=${tableToken}`;
     const targetLabel = this.escapeXml(target);
 
     const qrDataUrl = await QRCode.toDataURL(target, {

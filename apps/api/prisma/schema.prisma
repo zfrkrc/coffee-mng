@@ -342,6 +342,7 @@ model Order {
   status      String    @default("received") // received | preparing | ready | served | cancelled
   totalCents  Int       @default(0) @map("total_cents")
   note        String?
+  clientOrderId String? @unique @map("client_order_id")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
