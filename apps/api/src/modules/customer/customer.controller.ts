@@ -312,6 +312,12 @@ export class CustomerController {
   }
 
   private getBranchSlug(req: Request): string | null {
+    // Açık per-request scope (query param) önceliklidir — listeleme (auth'sız
+    // fetch) ile mutation (auth'lı authFetch) aynı branch'i çözümlemeli; aksi
+    // halde liste A branch'ini, close token'daki B branch'ini hedefler → 404.
+    const branchFromQuery = req.query.branch;
+    if (typeof branchFromQuery === 'string' && branchFromQuery.trim()) return branchFromQuery.trim().toLowerCase();
+
     const auth = req.headers.authorization ?? '';
     if (auth.startsWith('Bearer ')) {
       const token = auth.slice('Bearer '.length);
@@ -322,9 +328,6 @@ export class CustomerController {
         return null;
       }
     }
-
-    const branchFromQuery = req.query.branch;
-    if (typeof branchFromQuery === 'string' && branchFromQuery.trim()) return branchFromQuery.trim().toLowerCase();
 
     const body = req.body as { branchSlug?: unknown } | undefined;
     if (body && typeof body.branchSlug === 'string' && body.branchSlug.trim()) {
