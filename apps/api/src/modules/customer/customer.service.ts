@@ -1,6 +1,9 @@
 // @ts-nocheck — persistence patch, Prisma types from schema
 import { Injectable, Inject } from '@nestjs/common';
 import { AppError, uuidv7 } from '@cafeos/shared';
+import { mkdirSync, existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
+import { join, normalize, resolve } from 'node:path';
 import { computeOrderTotals } from '@cafeos/domain';
 import { PrismaClient } from '@prisma/client';
 import { PRISMA } from '../../core/database/prisma.module';
@@ -116,6 +119,54 @@ export class CustomerService {
   async deleteMenuItem(domain: string, itemId: string): Promise<void> {
     const { memberId, branchSlug } = this.resolveMember(domain);
     await this.db.cafeMenuItem.deleteMany({ where: { ...this.menuFilter(memberId, branchSlug), id: itemId } });
+  }
+
+  // ── menu images (local upload, persisted under UPLOAD_DIR) ──────────────
+  /** Decode a base64 data URL, validate magic bytes, write to UPLOAD_DIR, return a relative URL. */
+  async saveMenuItemImage(domain: string, itemId: string, dataUrl: string): Promise<{ imageUrl: string; sizeBytes: number }> {
+    if (!dataUrl || typeof dataUrl !== 'string') throw AppError.validation('image data URL required');
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl.trim());
+    if (!match) throw AppError.validation('Unsupported payload (expected data:image/jpeg|png|webp;base64,...)');
+    const buf = Buffer.from(match[2], 'base64');
+    if (buf.length === 0) throw AppError.validation('Image payload is empty');
+    if (buf.length > 5 * 1024 * 1024) {
+      throw AppError.validation(`Image too large (${Math.round(buf.length / 1024)}KB > 5MB)`);
+    }
+    const ext = this.detectImageType(buf);
+    if (!ext) throw AppError.validation('Unsupported image content (jpeg/png/webp only)');
+
+    const { memberId, branchSlug } = this.resolveMember(domain);
+    const memberDir = this.sanitizePathSegment(memberId);
+    const branchDir = this.sanitizePathSegment(branchSlug || 'main');
+    const fileId = this.sanitizePathSegment(itemId.toLowerCase());
+    const dir = join(this.env.UPLOAD_DIR, memberDir, branchDir);
+    mkdirSync(dir, { recursive: true });
+    const filename = `${fileId}.${ext}`;
+    await writeFile(join(dir, filename), buf);
+    return { imageUrl: `/api/customer/files/${memberDir}/${branchDir}/${filename}`, sizeBytes: buf.length };
+  }
+
+  /** Resolve an uploaded file to an absolute path + content type, or null. */
+  getMenuItemImage(member: string, slug: string, file: string): { path: string; mime: string } | null {
+    const root = resolve(this.env.UPLOAD_DIR);
+    const candidate = resolve(join(root, this.sanitizePathSegment(member), this.sanitizePathSegment(slug), this.sanitizePathSegment(file)));
+    if (!candidate.startsWith(root + '/') && candidate !== root) return null;
+    if (!existsSync(candidate)) return null;
+    const ext = file.split('.').pop()?.toLowerCase();
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'application/octet-stream';
+    return { path: candidate, mime };
+  }
+
+  private detectImageType(buf: Buffer): 'jpg' | 'png' | 'webp' | null {
+    if (buf.length < 12) return null;
+    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+    if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+    return null;
+  }
+
+  private sanitizePathSegment(value: string): string {
+    return value.replace(/[^a-z0-9._-]/gi, '').replace(/\.\.+/g, '').replace(/^\.+/, '').trim() || 'unknown';
   }
 
   // ── tables ───────────────────────────────────────────────────────────────

@@ -304,7 +304,7 @@ export default function CustomerPage() {
                 <button
                   key={key}
                   onClick={() => setCategory(key)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm font-medium transition ${
                     category === key
                       ? 'bg-emerald-700 text-white'
                       : 'bg-white/80 text-slate-700 hover:bg-emerald-50 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:bg-slate-800'
@@ -332,7 +332,7 @@ export default function CustomerPage() {
                     <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{item.price} TL</span>
                     <button
                       onClick={() => addToCart(item)}
-                      className="min-h-10 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-emerald-700 dark:hover:bg-emerald-800"
+                      className="inline-flex min-h-11 items-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-emerald-700 dark:hover:bg-emerald-800"
                     >
                       Ekle
                     </button>
@@ -356,14 +356,14 @@ export default function CustomerPage() {
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       onClick={() => changeQty(line.item.id, -1)}
-                      className="h-7 w-7 rounded-md border border-slate-300 text-sm dark:border-slate-600"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-slate-300 text-sm dark:border-slate-600"
                     >
                       -
                     </button>
                     <span className="w-6 text-center text-sm">{line.qty}</span>
                     <button
                       onClick={() => changeQty(line.item.id, 1)}
-                      className="h-7 w-7 rounded-md border border-slate-300 text-sm dark:border-slate-600"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-slate-300 text-sm dark:border-slate-600"
                     >
                       +
                     </button>
@@ -382,7 +382,7 @@ export default function CustomerPage() {
             <button
               onClick={submitOrder}
               disabled={cart.length === 0 || orderBusy}
-              className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               {orderBusy ? 'Gonderiliyor...' : 'Siparisi Gonder'}
             </button>
@@ -424,7 +424,7 @@ export default function CustomerPage() {
                   <button
                     onClick={() => void requestAccount()}
                     disabled={accountBusy}
-                    className="mt-3 w-full rounded-xl border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                    className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
                   >
                     {accountBusy ? 'Gonderiliyor...' : 'Hesap Iste'}
                   </button>

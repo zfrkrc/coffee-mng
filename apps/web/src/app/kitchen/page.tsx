@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { authFetch, clearAuthToken } from '../../lib/auth';
 
 type OrderStatus = 'received' | 'preparing' | 'ready';
@@ -21,6 +21,38 @@ type MenuItem = {
   priceCents: number;
 };
 
+/** Yeni sipariş geldiğinde iki tonlu chime çal (Web Audio, dosyasız). */
+function playNewOrderSound(audioCtxRef: { current: AudioContext | null }): void {
+  try {
+    const w = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
+    const AC = w.AudioContext ?? w.webkitAudioContext;
+    if (!AC) return;
+    let ctx = audioCtxRef.current;
+    if (!ctx) {
+      ctx = new AC();
+      audioCtxRef.current = ctx;
+    }
+    if (ctx.state === 'suspended') void ctx.resume();
+    const start = ctx.currentTime;
+    [660, 880].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = start + i * 0.16;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.24);
+    });
+  } catch {
+    // Ses cihazı/izni yoksa akış sessiz devam eder.
+  }
+}
+
 export default function KitchenPage() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +65,9 @@ export default function KitchenPage() {
   const [authBlocked, setAuthBlocked] = useState(false);
   const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
   const [now, setNow] = useState(() => Date.now());
+  const [advancingIds, setAdvancingIds] = useState<Set<string>>(new Set());
+  const seenOrderIds = useRef<Set<string>>(new Set());
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     // Bekleme süresi dakikada bir güncellenir (saniyelik tick gerekmez).
@@ -75,6 +110,12 @@ export default function KitchenPage() {
       const unique = json.items.filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)));
       unique.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       setOrders(unique);
+      // Yeni sipariş sesi: ilk yükleme çalmaz, sonrakilerde yeni id'ler için chime.
+      const known = seenOrderIds.current;
+      const fresh = unique.filter((o) => !known.has(o.id));
+      const firstLoad = known.size === 0;
+      fresh.forEach((o) => known.add(o.id));
+      if (!firstLoad && fresh.length > 0) playNewOrderSound(audioCtxRef);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Kitchen list unavailable');
@@ -93,10 +134,29 @@ export default function KitchenPage() {
   }
 
   async function advanceOrder(orderId: string) {
-    const branch = new URLSearchParams(window.location.search).get('branch');
-    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
-    await authFetch(`/api/customer/kitchen/orders/${orderId}/advance${qs}`, { method: 'POST' });
-    await loadOrders();
+    if (advancingIds.has(orderId)) return;
+    setAdvancingIds((prev) => new Set(prev).add(orderId));
+    // Optimistik: kullanıcıya anında taşı, sunucuyu arkada senkronla.
+    const nextStatus: Record<OrderStatus, OrderStatus> = { received: 'preparing', preparing: 'ready', ready: 'ready' };
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus[o.status] ?? o.status } : o)));
+    try {
+      const branch = new URLSearchParams(window.location.search).get('branch');
+      const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+      const res = await authFetch(`/api/customer/kitchen/orders/${orderId}/advance${qs}`, { method: 'POST' });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Siparis ilerletilemedi');
+      await loadOrders();
+    } finally {
+      setAdvancingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
+    }
   }
 
   function startEdit(order: KitchenOrder) {
@@ -163,13 +223,13 @@ export default function KitchenPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Canli siparis akis paneli</p>
           </div>
           <div className="flex items-center gap-2">
-            <a href={`/qr${branchQuery}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+            <a href={`/qr${branchQuery}`} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
               Masa QR
             </a>
-            <a href={`/ops${branchQuery}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+            <a href={`/ops${branchQuery}`} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
               Isletme
             </a>
-            <button onClick={() => void loadOrders()} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+            <button onClick={() => void loadOrders()} className="inline-flex min-h-11 items-center rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
               Yenile
             </button>
           </div>
@@ -184,6 +244,7 @@ export default function KitchenPage() {
             accent="bg-sky-600"
             items={grouped.received}
             now={now}
+            advancing={advancingIds}
             onAdvance={advanceOrder}
             onStartEdit={startEdit}
             editingOrderId={editingOrderId}
@@ -202,6 +263,7 @@ export default function KitchenPage() {
             accent="bg-amber-600"
             items={grouped.preparing}
             now={now}
+            advancing={advancingIds}
             onAdvance={advanceOrder}
             onStartEdit={startEdit}
             editingOrderId={editingOrderId}
@@ -220,6 +282,7 @@ export default function KitchenPage() {
             accent="bg-emerald-700"
             items={grouped.ready}
             now={now}
+            advancing={advancingIds}
             onAdvance={advanceOrder}
             onStartEdit={startEdit}
             editingOrderId={editingOrderId}
@@ -244,6 +307,7 @@ function StageColumn({
   accent,
   items,
   now,
+  advancing,
   onAdvance,
   onStartEdit,
   editingOrderId,
@@ -261,6 +325,7 @@ function StageColumn({
   accent: string;
   items: KitchenOrder[];
   now: number;
+  advancing: Set<string>;
   onAdvance: (orderId: string) => Promise<void>;
   onStartEdit: (order: KitchenOrder) => void;
   editingOrderId: string | null;
@@ -280,7 +345,7 @@ function StageColumn({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{title} <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">{items.length}</span></h2>
         <span className={`h-2.5 w-2.5 rounded-full ${accent}`} />
       </div>
-      <div className="space-y-3">
+      <div className="min-h-0 max-h-[70vh] space-y-3 overflow-y-auto pr-1 lg:max-h-[calc(100vh-13rem)]">
         {items.length === 0 && <p className="text-sm text-slate-500">Bos</p>}
         {items.map((order) => {
           const min = Math.max(0, Math.round((now - new Date(order.createdAt).getTime()) / 60000));
@@ -305,15 +370,16 @@ function StageColumn({
                 {order.status !== 'ready' && (
                   <button
                     onClick={() => void onAdvance(order.id)}
-                    className="rounded-md bg-slate-900 px-2.5 py-1.5 text-xs text-white"
+                    disabled={advancing.has(order.id)}
+                    className="inline-flex min-h-11 items-center rounded-md bg-slate-900 px-2.5 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Ilerle
+                    {advancing.has(order.id) ? '...' : 'Ilerle'}
                   </button>
                 )}
                 {order.status !== 'ready' && (
                   <button
                     onClick={() => onStartEdit(order)}
-                    className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs dark:border-slate-700"
+                    className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-2.5 py-1.5 text-xs dark:border-slate-700"
                   >
                     Duzenle
                   </button>
@@ -327,14 +393,14 @@ function StageColumn({
                   value={editTableCode}
                   onChange={(e) => setEditTableCode(e.target.value.toUpperCase())}
                   placeholder="Masa kodu"
-                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
                 />
                 {editRows.map((row, idx) => (
                   <div key={`${order.id}-edit-${idx}`} className="flex items-center gap-2">
                     <select
                       value={row.productId}
                       onChange={(e) => onEditRowChange(idx, { productId: e.target.value })}
-                      className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
                     >
                       {menu.map((m) => (
                         <option key={m.id} value={m.id}>{m.name}</option>
@@ -345,15 +411,15 @@ function StageColumn({
                       min={1}
                       value={row.quantity}
                       onChange={(e) => onEditRowChange(idx, { quantity: Number(e.target.value) || 1 })}
-                      className="w-16 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+                      className="w-16 rounded-md border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
                     />
-                    <button onClick={() => onRemoveRow(idx)} className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700">Sil</button>
+                    <button onClick={() => onRemoveRow(idx)} className="inline-flex min-h-11 items-center rounded-md border border-red-300 px-2 py-1 text-xs text-red-700">Sil</button>
                   </div>
                 ))}
                 <div className="flex items-center gap-2">
-                  <button onClick={onAddRow} className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">Satir ekle</button>
-                  <button onClick={() => void onSaveEdit(order.id)} className="rounded-md bg-emerald-700 px-2 py-1 text-xs text-white">Kaydet</button>
-                  <button onClick={onCancelEdit} className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">Vazgec</button>
+                  <button onClick={onAddRow} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">Satir ekle</button>
+                  <button onClick={() => void onSaveEdit(order.id)} className="inline-flex min-h-11 items-center rounded-md bg-emerald-700 px-2 py-1 text-xs text-white">Kaydet</button>
+                  <button onClick={onCancelEdit} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">Vazgec</button>
                 </div>
               </div>
             )}

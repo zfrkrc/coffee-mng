@@ -57,6 +57,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   ENABLE_SWAGGER: bool,
   /** zaferkaraca.net Teklif Sihirbazı — CafeOS teklif talepleri buraya iletilir. */
   QUOTE_SERVICE_URL: z.string().default('https://zaferkaraca.net'),
+  /** Menü görseli upload dizini (kalıcı volume'a bağlanır). */
+  UPLOAD_DIR: z.string().min(1).default('/app/uploads'),
 });
 
 /** Schema for the Next.js web app. */

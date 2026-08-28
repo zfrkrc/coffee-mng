@@ -150,8 +150,8 @@ export default function StockLabPage() {
               <p className="text-sm text-amber-100">Tost, waffle, limonata urunlerini hammaddeden yonetmek icin prototip panel</p>
             </div>
             <div className="flex items-center gap-2">
-              <a href={`/ops${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Ops geri don</a>
-              <a href={`/kitchen${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Mutfak</a>
+              <a href={`/ops${branchQuery}`} className="inline-flex min-h-11 items-center rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Ops geri don</a>
+              <a href={`/kitchen${branchQuery}`} className="inline-flex min-h-11 items-center rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Mutfak</a>
             </div>
           </div>
         </header>
@@ -188,7 +188,7 @@ export default function StockLabPage() {
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
               />
             </div>
-            <button onClick={addIngredient} className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white">
+            <button onClick={addIngredient} className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white">
               Hammaddeyi ekle
             </button>
 
@@ -255,7 +255,7 @@ export default function StockLabPage() {
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
               />
             </div>
-            <button onClick={applyStockEntry} className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+            <button onClick={applyStockEntry} className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
               Depoya giris isle
             </button>
             <p className="mt-2 text-xs text-slate-500">
@@ -277,7 +277,7 @@ export default function StockLabPage() {
                   <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
               </select>
-              <button onClick={addRecipeRow} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
+              <button onClick={addRecipeRow} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700">
                 Satir ekle
               </button>
             </div>
@@ -313,7 +313,7 @@ export default function StockLabPage() {
                   </div>
                   <button
                     onClick={() => removeRecipeRow(idx)}
-                    className="rounded-lg border border-red-300 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:text-red-300"
+                    className="inline-flex min-h-11 items-center rounded-lg border border-red-300 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:text-red-300"
                   >
                     Sil
                   </button>

@@ -22,6 +22,7 @@ volumes:
   redis_data:
   cafe_backups:
   cafe_agent_state:
+  cafe_uploads:
 
 services:
   # ------------------------------------------------------------------
@@ -92,6 +93,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-cafeos}:${POSTGRES_PASSWORD:-cafeos}@postgres:5432/${POSTGRES_DB:-cafeos}
       REDIS_URL: redis://redis:6379
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - cafe_uploads:/app/uploads
     networks:
       - edge
     expose:

@@ -3,6 +3,7 @@ import { Body, Controller, Get, Inject, Param, Post, Req, Res } from '@nestjs/co
 import { ApiTags } from '@nestjs/swagger';
 import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { createReadStream } from 'node:fs';
 import { CustomerService } from './customer.service';
 import { TelegramNotifyService } from './telegram-notify.service';
 import type { Request, Response } from 'express';
@@ -80,6 +81,15 @@ class UpsertMenuItemDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+}
+
+class UploadMenuItemImageDto {
+  @IsString()
+  id!: string;
+
+  /** data:image/jpeg|png|webp;base64,<...> */
+  @IsString()
+  image!: string;
 }
 
 class AdjustInventoryDto {
@@ -163,6 +173,25 @@ export class CustomerController {
     this.requireService(req, 'ops-dashboard');
     await this.customer.deleteMenuItem(this.getRequestDomain(req), itemId);
     return { ok: true };
+  }
+
+  @Post('admin/menu/:itemId/image')
+  async uploadMenuItemImage(@Param('itemId') itemId: string, @Body() body: UploadMenuItemImageDto, @Req() req: Request) {
+    this.requireService(req, 'ops-dashboard');
+    const result = await this.customer.saveMenuItemImage(this.getRequestDomain(req), itemId, body.image);
+    return { ok: true, ...result };
+  }
+
+  @Get('files/:member/:slug/:file')
+  async menuImageFile(@Param('member') member: string, @Param('slug') slug: string, @Param('file') file: string, @Res() res: Response) {
+    const found = this.customer.getMenuItemImage(member, slug, file);
+    if (!found) {
+      res.status(404).send('Not found');
+      return;
+    }
+    res.setHeader('content-type', found.mime);
+    res.setHeader('cache-control', 'public, max-age=86400');
+    createReadStream(found.path).pipe(res);
   }
 
   @Get('admin/inventory')

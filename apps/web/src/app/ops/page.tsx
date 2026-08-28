@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { authFetch } from '../../lib/auth';
 
 type Overview = {
@@ -72,6 +72,35 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+function resizeImageFile(file: File, maxDim = 1000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Dosya okunamadı'));
+    reader.onload = () => {
+      const src = String(reader.result);
+      const img = new Image();
+      img.onerror = () => reject(new Error('Görsel açılamadı'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas desteklenmiyor'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/webp', 0.85));
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function OpsPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -87,6 +116,7 @@ export default function OpsPage() {
   const [form, setForm] = useState({ id: '', name: '', category: 'coffee', priceTl: '0', note: '', imageUrl: '' });
   const [idEdited, setIdEdited] = useState(false);
   const [tableForm, setTableForm] = useState({ code: '', name: '', capacity: '2' });
+  const [imageUploading, setImageUploading] = useState(false);
   const branchQuery = branchSlug ? `?branch=${encodeURIComponent(branchSlug)}` : '';
 
   useEffect(() => {
@@ -163,6 +193,38 @@ export default function OpsPage() {
     await loadAll();
   }
 
+  async function handleImageSelect(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!form.id.trim()) {
+      setError('Görsel yüklemek için önce ürün adı gir (id otomatik oluşsun).');
+      return;
+    }
+    setImageUploading(true);
+    try {
+      const dataUrl = await resizeImageFile(file);
+      const branch = new URLSearchParams(window.location.search).get('branch');
+      const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+      const res = await authFetch(`/api/customer/admin/menu/${encodeURIComponent(form.id.trim())}/image${qs}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const json = (await res.json()) as { imageUrl: string };
+      setForm((f) => ({ ...f, imageUrl: json.imageUrl }));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Görsel yüklenemedi');
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
   async function adjustStock(productId: string, delta: number) {
     const branch = new URLSearchParams(window.location.search).get('branch');
     const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
@@ -232,22 +294,22 @@ export default function OpsPage() {
             <p className="text-sm text-emerald-100">Menü, depo, masa ve operasyon yönetimi</p>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/ai-station" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">AI Analiz</a>
-            <a href={`/kitchen${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Mutfak</a>
-            <a href={`/qr${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Masa QR</a>
-            <a href={`/m${branchQuery}`} className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Müşteri</a>
-            <button onClick={() => void loadAll()} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-emerald-800">Yenile</button>
+            <a href="/ai-station" className="inline-flex min-h-11 items-center rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">AI Analiz</a>
+            <a href={`/kitchen${branchQuery}`} className="inline-flex min-h-11 items-center rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Mutfak</a>
+            <a href={`/qr${branchQuery}`} className="inline-flex min-h-11 items-center rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Masa QR</a>
+            <a href={`/m${branchQuery}`} className="inline-flex min-h-11 items-center rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm">Müşteri</a>
+            <button onClick={() => void loadAll()} className="inline-flex min-h-11 items-center rounded-xl bg-white px-3 py-2 text-sm font-semibold text-emerald-800">Yenile</button>
           </div>
           </div>
         </div>
 
-        <div className="mb-5 flex flex-wrap gap-2">
-          <a href="#menu" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Menü</a>
-          <a href="#inventory" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Depo</a>
-          <a href={`/ops/stock-lab${branchQuery}`} className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Reçete Lab</a>
-          <a href="#tables" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Masalar</a>
-          <a href="#reports" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Rapor</a>
-          <a href="#accounts" className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Hesaplar</a>
+<div className="mb-5 flex flex-wrap gap-2">
+          <a href="#menu" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Menü</a>
+          <a href="#inventory" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Depo</a>
+          <a href={`/ops/stock-lab${branchQuery}`} className="inline-flex min-h-11 items-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Reçete Lab</a>
+          <a href="#tables" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Masalar</a>
+          <a href="#reports" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">Rapor</a>
+          <a href="#accounts" className="inline-flex min-h-11 items-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">Hesaplar</a>
         </div>
 
         {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -266,7 +328,7 @@ export default function OpsPage() {
             <div className="mb-4 grid gap-2 sm:grid-cols-2">
               <div className="flex items-center gap-2">
                 <input value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} placeholder="id (latte-large)" readOnly={!idEdited} className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
-                <button type="button" onClick={() => setIdEdited((v) => !v)} className="rounded-lg border border-slate-300 px-2 py-2 text-xs dark:border-slate-700">{idEdited ? 'otomatik' : 'düzenle'}</button>
+                <button type="button" onClick={() => setIdEdited((v) => !v)} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-2 py-2 text-xs dark:border-slate-700">{idEdited ? 'otomatik' : 'düzenle'}</button>
               </div>
               <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value, id: idEdited ? f.id : slugify(e.target.value) }))} placeholder="ürün adı" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
               <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
@@ -275,11 +337,45 @@ export default function OpsPage() {
                 <option value="food">Yiyecek</option>
                 <option value="dessert">Tatli</option>
               </select>
-              <input value={form.priceTl} onChange={(e) => setForm((f) => ({ ...f, priceTl: e.target.value }))} placeholder="fiyat (TL)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+              <input value={form.priceTl} type="number" inputMode="decimal" min="0" step="0.01" onChange={(e) => setForm((f) => ({ ...f, priceTl: e.target.value }))} placeholder="fiyat (TL)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
               <input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="açıklama" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 sm:col-span-2" />
-              <input value={form.imageUrl} onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))} placeholder="görsel url (opsiyonel)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 sm:col-span-2" />
+              <input value={form.imageUrl} onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))} placeholder="veya doğrudan görsel URL (opsiyonel)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 sm:col-span-2" />
+              <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                <label className="inline-flex min-h-11 cursor-pointer flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                  {imageUploading ? 'Yükleniyor...' : 'Görsel yükle (otomatik küçültülür)'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={imageUploading || !form.id.trim()}
+                    onChange={(e) => void handleImageSelect(e)}
+                    className="hidden"
+                  />
+                </label>
+                {form.imageUrl && (
+                  <img
+                    src={form.imageUrl}
+                    alt="önizleme"
+                    className="h-11 w-11 rounded-md object-cover"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = MENU_FALLBACK_IMAGE;
+                    }}
+                  />
+                )}
+              </div>
             </div>
-            <button onClick={() => void saveMenuItem()} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white">Kaydet</button>
+            <button
+              onClick={() => void saveMenuItem()}
+              disabled={!form.id.trim() || !form.name.trim() || !(Number(form.priceTl) > 0)}
+              className="min-h-11 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              Kaydet
+            </button>
+            {(!form.name.trim() || !(Number(form.priceTl) > 0)) && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                {!form.name.trim() ? 'Kaydetmek için ürün adı gerekli.' : 'Fiyat 0\'dan büyük olmalı.'}
+              </p>
+            )}
 
             <div className="mt-4 space-y-2">
               {menu.map((item) => (
@@ -296,7 +392,7 @@ export default function OpsPage() {
                     />
                     <span className="truncate">{item.name} ({Math.round(item.priceCents / 100)} TL)</span>
                   </div>
-                  <button onClick={() => void deleteMenuItem(item.id)} className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-300">Sil</button>
+                  <button onClick={() => void deleteMenuItem(item.id)} className="inline-flex min-h-11 items-center rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-300">Sil</button>
                 </div>
               ))}
             </div>
@@ -331,9 +427,9 @@ export default function OpsPage() {
                     </span>
                   </div>
                   <div className="mt-2 flex gap-2">
-                    <button onClick={() => void adjustStock(item.productId, -1)} className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">-1</button>
-                    <button onClick={() => void adjustStock(item.productId, 1)} className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">+1</button>
-                    <button onClick={() => void adjustStock(item.productId, 5)} className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">+5</button>
+                    <button onClick={() => void adjustStock(item.productId, -1)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">-1</button>
+                    <button onClick={() => void adjustStock(item.productId, 1)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">+1</button>
+                    <button onClick={() => void adjustStock(item.productId, 5)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">+5</button>
                   </div>
                 </div>
               ))}
@@ -359,11 +455,18 @@ export default function OpsPage() {
             <div className="flex gap-2">
               <input
                 value={tableForm.capacity}
+                type="number"
+                inputMode="numeric"
+                min="1"
                 onChange={(e) => setTableForm((f) => ({ ...f, capacity: e.target.value }))}
                 placeholder="kapasite"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
               />
-              <button onClick={() => void saveTable()} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm text-white">
+              <button
+                onClick={() => void saveTable()}
+                disabled={!tableForm.code.trim() || !tableForm.name.trim() || !(Number(tableForm.capacity) >= 1)}
+                className="min-h-11 rounded-lg bg-emerald-700 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
                 Ekle
               </button>
             </div>
@@ -374,7 +477,7 @@ export default function OpsPage() {
                 <p className="font-semibold">{t.name}</p>
                 <p className="text-xs text-slate-500">Kod: {t.code} · {t.capacity} kişi</p>
                 <a href={t.customerUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-emerald-700 dark:text-emerald-400">Müşteri linki</a>
-                <button onClick={() => void deleteTable(t.code)} className="mt-2 rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-300">
+                <button onClick={() => void deleteTable(t.code)} className="mt-2 inline-flex min-h-11 items-center rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-300">
                   Sil
                 </button>
               </div>
@@ -482,14 +585,14 @@ export default function OpsPage() {
                           [account.tableCode]: e.target.value as 'cash' | 'card',
                         }))
                       }
-                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
+                      className="min-h-11 rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
                     >
                       <option value="cash">Nakit</option>
                       <option value="card">Kart</option>
                     </select>
                     <button
                       onClick={() => void closeAccount(account)}
-                      className="flex-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
+                      className="min-h-11 flex-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
                     >
                       Hesap Kapat
                     </button>
