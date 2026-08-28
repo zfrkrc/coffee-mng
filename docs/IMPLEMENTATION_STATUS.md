@@ -1,81 +1,77 @@
 # CafeOS Edge Implementation Status
 
 ## Snapshot
-- Date: 2026-08-09
-- Phase: Phase 1 foundation
-- Status: Core stack operational
+- Date: 2026-08-28
+- Phase: Phase 1–4 (foundation → customer/kitchen/ops → sales/B2C → UX polish)
+- Status: Core stack operational; Faz 1/2/3/4 canlıda test edildi
 
-## Completed in This Iteration
-- Multi-branch support added for a single tenant domain.
-  - Added `access_branches` model (slug/name/address/active) in Prisma schema.
-  - Added superadmin APIs for branch CRUD-lite (`list`, `create`, `active toggle`).
-  - Added Hero panel branch management UI.
-  - Tenant login now accepts optional `branchSlug` and persists it in JWT claim.
-  - Customer runtime state is now partitioned by `domain::branchSlug` (fallback `domain`).
-  - Branch isolation now applies to menu, table, inventory, order, kitchen and AI-station datasets.
-- Prisma runtime init issue fixed for API container build.
-  - Root cause: `pnpm deploy` preserved placeholder Prisma client in deployed tree.
-  - Fix: regenerate Prisma client inside `/app/out` during API image build.
-- Web container startup fixed for Next.js standalone in monorepo.
-  - Root cause: wrong runtime entry (`server.js`) for workspace-root standalone output.
-  - Fix: set entry to `apps/web/server.js` and configure tracing root.
-- Monorepo tracing hardened for web build.
-  - `outputFileTracingRoot` set in `apps/web/next.config.js`.
-- Healthcheck reliability improved.
-  - Replaced `localhost` with `127.0.0.1` for compose healthchecks.
-- Shared-host port conflicts resolved.
-  - Web host port set to `3003` in local `.env.edge` for this environment.
-- Kitchen order correction flow added for staff.
-  - New endpoint: `POST /api/customer/kitchen/orders/:orderId/edit`
-  - Constraint: `ready` status orders cannot be edited.
-  - Editable fields: `tableCode`, `items[]` (productId + quantity).
-  - Kitchen UI now includes inline edit form per order card for non-ready orders.
-- First-load and refresh stability improved on web.
-  - Kitchen page now handles `401/403` by stopping poll loop and redirecting to login.
-  - Login page query parsing hardened for refresh path.
-  - PWA service worker cache bumped (`v2`) and navigation strategy moved to network-first to reduce stale bundle issues.
-- QR SVG output hardened.
-  - Escaped QR target label in SVG (`&` -> `&amp;`) to prevent XML parsing errors on branch URLs.
-- AI token usage tracking added (Redis backed, 30-day retention).
-  - Per AI snapshot call: estimated `promptTokens`, `completionTokens`, `totalTokens`, `costTl` recorded.
-  - Cost math (TL): prompt and completion token rates are calculated per 1K token.
-  - New superadmin endpoint: `GET /api/ai-station/usage?hours=24`.
-  - Hero panel now shows 24h usage totals + domain breakdown (token and cost visibility).
+## Completed
 
-## Current Runtime State
-- `cafe-api`: healthy
-- `cafe-web`: healthy
-- `node-agent`: healthy
-- `backup-agent`: healthy
-- `postgres`: healthy
-- `redis`: healthy
+### Faz 1 — Foundation + persistance
+- Prisma/PostgreSQL kalıcılık: eski in-memory Map depolar `tenant → domain::branch` izolasyonlu tablolara taşındı (`cafe_menu_item`, `cafe_table`, `cafe_inventory`, `order`, `order_item`, `table_account`, `day_shift`).
+- Sipariş **idempotency** (`client_order_id` unique — çift tıklama/retry duplicate üretmez).
+- **Masa kilidi** (QR `tableToken` imzalı): token'daki masayı elle değiştiren istek 403.
+- Çift onay + Mimar onay döngüsü (kapsam dışı kısım).
+- Ops paneli sayaç durumu (menü/masa/açık sipariş/düşük stok/hazır ciro).
+- Multi-branch desteği: `access_branches`, tenant login `branchSlug`, tüm domain verisi `domain::branchSlug` ile bölümlenir.
 
-## Validation Notes (2026-08-09)
+### Faz 2 — Menü + satış
+- 2.1 **Menü görseli yerel upload + client-side canvas resize** (yeni paket YOK; `sharp` kullanılmadı):
+  - `POST /api/customer/admin/menu/:itemId/image` — base64 data URL (jpeg/png/webp magic-byte doğrulama, max 5MB), tenant/branch başına `UPLOAD_DIR` volume'üne yazar, relative URL döner.
+  - `GET /api/customer/files/:member/:slug/:file` — statik serve (cache-control, traversal-guard).
+  - Compose `cafe_uploads` volume; ops panelinde file picker + önizleme; URL alanı korundu.
+- 2.2 Kategori placeholder + görsel fallback.
+- KDS FIFO/süre/renk (Faz 3 başlığı altında).
+
+### Faz 3 — KDS (Mutfak Ekranı)
+- FIFO sıralama + defensive dedupe (id bazında).
+- Bekleme süresi (⏱ dk) + renk kodları (5/10 dk eşik) + accent kolon rozetleri (`max-h-[70vh]`).
+- **Yeni sipariş sesi**: Web Audio iki tonlu chime, ilk yükleme çalmaz, yalnız yeni id'lerde.
+- **Optimistik "İlerle"**: anında taşır + POST; hata → reload; çift tıklama koruması (advancing set).
+- **Kolon bağımsız scroll** (`overflow-y-auto`).
+- Sipariş düzeltme akışı (`kitchen/orders/:id/edit`; `ready` editlemez).
+
+### Faz 4 — UX polish
+- 4.1 Slug otomatik (Türkçe karakter → `-`).
+- 4.2 Menü/masa form validasyonu: boşsa Kaydet/Ekle pasif, negatif fiyat/kapasite engeli + uyarı.
+- 4.3 Boş durumlar (menü/depo/rapor/hesap).
+- 4.4 (çift onay web) — InsightMap tarafında.
+- 4.5 Demo temizlik scripti.
+- 4.6 Tablet **44×44px dokunuş hedefleri** (ops/kitchen/m/stock-lab).
+
+### Diğer
+- **Satış sitesi → vitrin** dönüşümü + paketler/teklif sayfası (B2C) + branch'li menü butonları (waycoffee özel hero).
+- **Lead akışı**: CafeOS teklif talepleri `zaferkaraca.net` Teklif Sihirbazı'na (quote-service) iletilir.
+- AI Station: token/usage takibi (Redis, 24h panel), AI analiz ekranı.
+- QR: masa QR (SVG, escape'li), customer/qr table sayfası + `t` token.
+- Depo takip (stok ±, kritik uyarı) + Reçete Lab (hammadde/BOM prototip).
+- Hesap akışı (open/request/close; nakit/kart), Telegram bildirimleri.
+- Hesaplar kapanışta `requested` → `paid`, paymentMethod seçimi.
+
+## Current Runtime State (canlı, ana sunucu)
+- `cafe-api`: healthy (container `cafeos-api`)
+- `cafe-web`: healthy (`cafeos-web`, host port **3003** — 3001 InsightMap auth'a ait!)
+- `node-agent`, `backup-agent`, `postgres`, `redis`: healthy
+- Volume: `cafe_uploads` (menü görselleri)
+
+## Validation Notes
 - `pnpm --filter @cafeos/api typecheck` -> pass
 - `pnpm --filter @cafeos/web typecheck` -> pass
-- API tests pass when explicit Jest config is provided:
-  - `pnpm --filter @cafeos/api exec jest --runInBand --config jest.config.js`
-- Web test command currently returns `No test files found` (expected in current repo state).
-- Deploy check:
-  - `./infra/scripts/cafeos.sh up cafe-api cafe-web` completed
-  - `./infra/scripts/cafeos.sh status` -> all critical services healthy
+- API unit tests: `role-permissions` 4/4, `order.domain` 14/14 pass.
+- ⚠️ Önceden bozuk (Prisma migrasyonu `db34067` sonrası eski constructor'lı):
+  `customer.flow.e2e.spec.ts` + `ai-station.spec.ts` — düzeltilecek (bkz. testler).
+- Web test: `No test files found` (beklenen; vitest'e test eklenebilir).
+- Canlı smoke (Faz 2.1+: web 200, files 404, upload auth'suz 403, volume oluştu).
 
-## Docs Added
-- `docs/ARCHITECTURE.md`
-- `docs/DATABASE.md`
-- `docs/OFFLINE.md`
-- `docs/SECURITY.md`
-- `docs/DEPLOYMENT.md`
-- `docs/BACKUP.md`
-- `docs/LICENSE.md`
-- `docs/UPDATE.md`
+## Deploy Notes
+- `cd /home/zfrkrc/repos/cafeos/infra/docker && WEB_PORT=3003 docker compose build cafe-api cafe-web && WEB_PORT=3003 docker compose up -d cafe-api cafe-web`
+- ⚠️ `WEB_PORT` COMMUTA GİRMEZSE web 3001'e yayınlanır (host'ta InsightMap auth) — hep `WEB_PORT=3003` kullan.
+- Prisma migration elle SQL ile uygulandı (`client_order_id` unique).
 
 ## Security Notes
-- Any PAT/token pasted in chat must be considered compromised and revoked.
-- Secrets remain outside repository content (`.env.edge` is gitignored).
+- Secrets `.env.edge`'de (gitignored). Upload pathleri `UPLOAD_DIR` içinde tenant/branch sanitize'li; traversal guard var.
 
-## Next Recommended Phase-1 Tasks
-1. Implement auth endpoints (login/refresh/logout) with role-bound claims.
-2. Add tenant/branch bootstrap seed flow.
-3. Add first domain module slice (menu read + order draft).
-4. Add smoke tests for compose lifecycle and health endpoints.
+## Next / Optional
+- `customer.flow.e2e.spec.ts` + `ai-station.spec.ts` test onarımı.
+- Backup agent menü görselleri (cafe_uploads volume) yedek dışı — opsiyonel.
+- KDS sesi PWA kurulum denetimi / daha fazla e2e (gerçek DB ile).

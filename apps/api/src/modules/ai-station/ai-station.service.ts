@@ -17,9 +17,9 @@ export class AiStationService {
   ) {}
 
   async getSnapshot(domain: string): Promise<AiStationSnapshot & { usage: AiUsageRecord }> {
-    const overview = this.customer.getOverview(domain);
-    const report = this.customer.getDailyReport(domain);
-    const inventory = this.customer.getInventory(domain);
+    const overview = await this.customer.getOverview(domain);
+    const report = await this.customer.getDailyReport(domain);
+    const inventory = await this.customer.getInventory(domain);
 
     const recommendations: AiStationRecommendation[] = [];
 
@@ -96,8 +96,8 @@ export class AiStationService {
 
   async getManagementSummary(domain: string): Promise<{ summary: string; source: 'ai' | 'deterministic' }> {
     // Deterministik veri önce Cafe'nin kendi servislerinden üretilir — AI yalnızca yorumlar.
-    const overview = this.customer.getOverview(domain);
-    const report = this.customer.getDailyReport(domain);
+    const overview = await this.customer.getOverview(domain);
+    const report = await this.customer.getDailyReport(domain);
     const deterministic = this.buildSummary(overview.openOrders, overview.lowStockCount, report.orderCount);
 
     if (!this.gateway.enabled) {

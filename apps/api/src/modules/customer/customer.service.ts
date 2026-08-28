@@ -206,6 +206,10 @@ export class CustomerService {
 
   async tableByCode(domain: string, tableCode: string): Promise<CafeTable> {
     const { memberId, branchSlug } = this.resolveMember(domain);
+    // Masa aramadan önce varsayılan kümeyi idempotent seed et — POST /orders,
+    // öncesinde menu/tables GET'i olmadan gelirse (veya testlerde) tablolar yok
+    // değil; geçersiz kod yine de "bilinmeyen masa" ile reddedilir.
+    await this.ensureSeeded(memberId, branchSlug);
     const found = await this.db.cafeTable.findFirst({ where: { memberId, branchSlug: branchSlug ?? '', code: tableCode } });
     if (!found) throw AppError.validation('Unknown table code', { tableCode });
     return found;

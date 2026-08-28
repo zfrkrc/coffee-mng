@@ -3,11 +3,19 @@
  * AiStation management summary tests — central InsightMap gateway integration.
  *
  * Deterministik AI Station'a dokunulmaz; yalnızca opsiyonel AI özet katmanı test edilir.
- * Gerçek network çağrısı YOK — fetch mock'lanır.
+ * Gerçek network çağrısı YOK — fetch mock'lanır. DB in-memory fake (fake-prisma.ts).
  */
 import { CustomerService } from '../customer/customer.service';
 import { AiStationService } from './ai-station.service';
 import { AiGatewayClient } from './ai-gateway.client';
+import { createFakePrisma } from '../../testkit/fake-prisma';
+
+function fakeCustomer(): CustomerService {
+  return new CustomerService(createFakePrisma(), {
+    JWT_SECRET: 'test-secret-please-change',
+    UPLOAD_DIR: '/tmp/cafeos-test-uploads',
+  } as any);
+}
 
 describe('AiGatewayClient', () => {
   const env = { INSIGHTMAP_AI_URL: 'https://gateway.test', INSIGHTMAP_AI_SERVICE_KEY: 'sk-test' } as any;
@@ -49,7 +57,7 @@ describe('AiGatewayClient', () => {
 });
 
 describe('AiStationService.getManagementSummary', () => {
-  const customer = new CustomerService();
+  const customer = fakeCustomer();
 
   it('falls back to deterministic when gateway disabled', async () => {
     const gateway = { enabled: false, managementSummary: jest.fn() } as any;
@@ -81,7 +89,7 @@ describe('AiStationService deterministic regression', () => {
   it('snapshot still computes deterministic summary/recommendations/forecasts', async () => {
     const gateway = { enabled: false, managementSummary: jest.fn() } as any;
     const aiUsage = { record: jest.fn().mockResolvedValue({}) } as any;
-    const svc = new AiStationService(new CustomerService(), aiUsage, gateway);
+    const svc = new AiStationService(fakeCustomer(), aiUsage, gateway);
     const snap = await svc.getSnapshot('cafeos.waycoffee.com.tr');
     expect(snap.summary).toHaveProperty('score');
     expect(snap.summary).toHaveProperty('status');
