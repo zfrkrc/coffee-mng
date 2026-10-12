@@ -43,3 +43,4 @@ apps/web/public/sw.js.map
 .claude/
 .mcp.json
 .repowise/
+.claude/CLAUDE.md
