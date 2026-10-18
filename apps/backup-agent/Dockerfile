@@ -14,6 +14,8 @@ RUN pnpm --filter @cafeos/backup-agent build
 RUN pnpm --filter @cafeos/backup-agent deploy --prod /app/out
 
 FROM node:20-alpine
+# Güvenlik: alpine upgrade
+RUN apk -U upgrade --no-cache
 WORKDIR /app
 RUN apk add --no-cache postgresql-client gzip
 ENV NODE_ENV=production
