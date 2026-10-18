@@ -14,6 +14,8 @@ RUN pnpm --filter @cafeos/node-agent build
 RUN pnpm --filter @cafeos/node-agent deploy --prod /app/out
 
 FROM node:20-alpine
+# Güvenlik: alpine upgrade
+RUN apk -U upgrade --no-cache
 WORKDIR /app
 RUN apk add --no-cache wget
 ENV NODE_ENV=production

@@ -23,6 +23,8 @@ RUN pnpm --filter @cafeos/api deploy --prod /app/out \
     && ./node_modules/.bin/prisma generate
 
 FROM node:20-alpine AS runtime
+# Güvenlik: alpine upgrade
+RUN apk -U upgrade --no-cache
 WORKDIR /app
 RUN apk add --no-cache openssl wget
 ENV NODE_ENV=production

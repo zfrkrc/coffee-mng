@@ -17,6 +17,8 @@ RUN pnpm --filter @cafeos/web build
 RUN pnpm --filter @cafeos/web deploy --prod /app/out
 
 FROM node:20-alpine AS runner
+# Güvenlik: alpine upgrade
+RUN apk -U upgrade --no-cache
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
